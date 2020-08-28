@@ -7,7 +7,7 @@ static void bstack(void)
 		if (!c->minimized)
 			n++;
 
-	m  = MAX(1, MIN(n, screen.nmaster));
+	m = MAX(1, MIN(n, screen.nmaster));
 	mh = n == m ? wah : screen.mfact * wah;
 	mw = waw / m;
 	tw = n == m ? 0 : waw / (n - m);
@@ -17,7 +17,8 @@ static void bstack(void)
 	for (i = 0, c = nextvisible(clients); c; c = nextvisible(c->next)) {
 		if (c->minimized)
 			continue;
-		if (i < m) {	/* master */
+		if (i < m) {
+			/* master */
 			if (i > 0) {
 				mvvline(ny, nx, ACS_VLINE, nh);
 				mvaddch(ny, nx, ACS_TTEE);
@@ -25,7 +26,8 @@ static void bstack(void)
 			}
 			nh = mh;
 			nw = (i < m - 1) ? mw : (wax + waw) - nx;
-		} else {	/* tile window */
+		} else {
+			/* tile window */
 			if (i == m) {
 				nx = wax;
 				ny += mh;

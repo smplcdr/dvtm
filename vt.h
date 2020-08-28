@@ -15,52 +15,54 @@
  * IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#ifndef VT_H
-#define VT_H
+
+#ifndef _VT_H
+#define _VT_H 1
 
 #include <curses.h>
 #include <stdbool.h>
 #include <sys/types.h>
 
 #ifndef NCURSES_MOUSE_VERSION
-#define mmask_t unsigned long
+# define mmask_t unsigned long
 #endif
 
 typedef struct Vt Vt;
-typedef void (*vt_title_handler_t)(Vt*, const char *title);
-typedef void (*vt_urgent_handler_t)(Vt*);
+typedef void (*vt_title_handler_t)(Vt *, const char *title);
+typedef void (*vt_urgent_handler_t)(Vt *);
 
-void vt_init(void);
-void vt_shutdown(void);
+extern void vt_init(void);
+extern void vt_shutdown(void);
 
-void vt_keytable_set(char const * const keytable_overlay[], int count);
-void vt_default_colors_set(Vt*, attr_t attrs, short fg, short bg);
-void vt_title_handler_set(Vt*, vt_title_handler_t);
-void vt_urgent_handler_set(Vt*, vt_urgent_handler_t);
-void vt_data_set(Vt*, void *);
-void *vt_data_get(Vt*);
+extern void vt_keytable_set(char const *const keytable_overlay[], int count);
+extern void vt_default_colors_set(Vt *, attr_t attrs, short int fg, short int bg);
+extern void vt_title_handler_set(Vt *, vt_title_handler_t);
+extern void vt_urgent_handler_set(Vt *, vt_urgent_handler_t);
+extern void vt_data_set(Vt *, void *);
+extern void *vt_data_get(Vt *);
 
-Vt *vt_create(int rows, int cols, int scroll_buf_sz);
-void vt_resize(Vt*, int rows, int cols);
-void vt_destroy(Vt*);
-pid_t vt_forkpty(Vt*, const char *p, const char *argv[], const char *cwd, const char *env[], int *to, int *from);
-int vt_pty_get(Vt*);
-bool vt_cursor_visible(Vt*);
+extern Vt *vt_create(int rows, int cols, int scroll_buf_sz);
+extern void vt_resize(Vt *, int rows, int cols);
+extern void vt_destroy(Vt *);
+extern pid_t vt_forkpty(Vt *, const char *p, const char *argv[], const char *cwd,
+			const char *env[], int *to, int *from);
+extern int vt_pty_get(Vt *);
+extern bool vt_cursor_visible(Vt *);
 
-int vt_process(Vt *);
-void vt_keypress(Vt *, int keycode);
-ssize_t vt_write(Vt*, const char *buf, size_t len);
-void vt_mouse(Vt*, int x, int y, mmask_t mask);
-void vt_dirty(Vt*);
-void vt_draw(Vt*, WINDOW *win, int startrow, int startcol);
-short vt_color_get(Vt*, short fg, short bg);
-short vt_color_reserve(short fg, short bg);
+extern int vt_process(Vt *);
+extern void vt_keypress(Vt *, int keycode);
+extern ssize_t vt_write(Vt *, const char *buf, size_t len);
+extern void vt_mouse(Vt *, int x, int y, mmask_t mask);
+extern void vt_dirty(Vt *);
+extern void vt_draw(Vt *, WINDOW *win, int startrow, int startcol);
+extern short int vt_color_get(Vt *, short int fg, short int bg);
+extern short int vt_color_reserve(short int fg, short int bg);
 
-void vt_scroll(Vt*, int rows);
-void vt_noscroll(Vt*);
+extern void vt_scroll(Vt *, int rows);
+extern void vt_noscroll(Vt *);
 
-pid_t vt_pid_get(Vt*);
-size_t vt_content_get(Vt*, char **s, bool colored);
-int vt_content_start(Vt*);
+extern pid_t vt_pid_get(Vt *);
+extern size_t vt_content_get(Vt *, char **s, bool colored);
+extern int vt_content_start(Vt *);
 
-#endif /* VT_H */
+#endif /* _VT_H */

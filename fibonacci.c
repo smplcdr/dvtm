@@ -11,10 +11,9 @@ static void fibonacci(int s)
 	nx = wax;
 	ny = way;
 	nw = (n == 1) ? waw : screen.mfact * waw;
-	/* don't waste space dviding by 2 doesn't work for odd numbers
+	/* do not waste space dviding by 2 doesn't work for odd numbers
 	 * plus we need space for the border too. therefore set up these
-	 * variables for the next new width/height
-	 */
+	 * variables for the next new width/height */
 	nnw = waw - nw - 1;
 	nnh = nh = wah;
 
@@ -34,42 +33,44 @@ static void fibonacci(int s)
 					ny += nh;
 					nh = nnh;
 				}
-				/* don't adjust the width for the last client */
+				/* do not adjust the width for the last client */
 				if (i < n - 1) {
 					nw /= 2;
 					nnw -= nw + 1;
 				}
 				mvaddch(ny, nx - 1, ACS_LTEE);
 			}
-		} else if (i % mod == 1) {	/* dwindle: odd case, spiral: case 1 */
+		} else if (i % mod == 1) {
+			/* dwindle: odd case, spiral: case 1 */
 			nx += nw;
 			mvvline(ny, nx, ACS_VLINE, nh);
 			mvaddch(ny, nx, ACS_TTEE);
 			++nx;
 			nw = nnw;
-			/* don't adjust the height for the last client */
+			/* do not adjust the height for the last client */
 			if (i < n - 1) {
 				nh /= 2;
 				nnh -= nh;
 			}
-		} else if (i % mod == 2 && s) {	/* spiral: case 2 */
+		} else if (i % mod == 2 && s) {
+			/* spiral: case 2 */
 			ny += nh;
 			nh = nnh;
-			/* don't adjust the width for the last client */
+			/* do not adjust the width for the last client */
 			if (i < n - 1) {
 				nw /= 2;
 				nnw -= nw + 1;
 				nx += nnw;
 				mvvline(ny, nx, ACS_VLINE, nh);
 				mvaddch(ny, nx, ACS_TTEE);
-				++nx;
+				nx++;
 			} else {
 				mvaddch(ny, nx - 1, ACS_LTEE);
 			}
-		} else if (s) {	/* spiral: case 3 */
+		} else if (s) { /* spiral: case 3 */
 			nw = nnw;
-			nx -= nw + 1;	/* border */
-			/* don't adjust the height for the last client */
+			nx -= nw + 1; /* border */
+			/* do not adjust the height for the last client */
 			if (i < n - 1) {
 				nh /= 2;
 				nnh -= nh;

@@ -1,4 +1,5 @@
-/* valid curses attributes are listed below they can be ORed
+/*
+ * valid curses attributes are listed below they can be ORed
  *
  * A_NORMAL        Normal display (no highlight)
  * A_STANDOUT      Best highlighting mode of the terminal.
@@ -38,21 +39,21 @@ static Color colors[] = {
 /* whether status bar should be hidden if only one client exists */
 #define BAR_AUTOHIDE    true
 /* master width factor [0.1 .. 0.9] */
-#define MFACT 0.5
+#define MFACT		0.5
 /* number of clients in master area */
-#define NMASTER 1
+#define NMASTER		1
 /* scroll back buffer size in lines */
-#define SCROLL_HISTORY 500
+#define SCROLL_HISTORY	500
 /* printf format string for the tag in the status bar */
-#define TAG_SYMBOL   "[%s]"
+#define TAG_SYMBOL	"[%s]"
 /* curses attributes for the currently selected tags */
-#define TAG_SEL      (COLOR(BLUE) | A_BOLD)
+#define TAG_SEL		(COLOR(BLUE) | A_BOLD)
 /* curses attributes for not selected tags which contain no windows */
-#define TAG_NORMAL   (COLOR(DEFAULT) | A_NORMAL)
+#define TAG_NORMAL	(COLOR(DEFAULT) | A_NORMAL)
 /* curses attributes for not selected tags which contain windows */
-#define TAG_OCCUPIED (COLOR(BLUE) | A_NORMAL)
+#define TAG_OCCUPIED	(COLOR(BLUE) | A_NORMAL)
 /* curses attributes for not selected tags which with urgent windows */
-#define TAG_URGENT (COLOR(BLUE) | A_NORMAL | A_BLINK)
+#define TAG_URGENT	(COLOR(BLUE) | A_NORMAL | A_BLINK)
 
 const char tags[][8] = { "1", "2", "3", "4", "5" };
 
@@ -61,12 +62,17 @@ const char tags[][8] = { "1", "2", "3", "4", "5" };
 #include "bstack.c"
 #include "fullscreen.c"
 
+#define TILE_LAYOUT " []= "
+#define GRID_LAYOUT " +++ "
+#define BSTK_LAYOUT " TTT "
+#define FSCR_LAYOUT " [ ] "
+
 /* by default the first layout entry is used */
 static Layout layouts[] = {
-	{ "[]=", tile },
-	{ "+++", grid },
-	{ "TTT", bstack },
-	{ "[ ]", fullscreen },
+	{ TILE_LAYOUT, tile },
+	{ GRID_LAYOUT, grid },
+	{ BSTK_LAYOUT, bstack },
+	{ FSCR_LAYOUT, fullscreen },
 };
 
 #define MOD  CTRL('g')
@@ -76,21 +82,19 @@ static Layout layouts[] = {
 	{ { MOD, 'V', KEY,     }, { toggleview,     { tags[TAG] }               } }, \
 	{ { MOD, 'T', KEY,     }, { toggletag,      { tags[TAG] }               } },
 
-/* you can specifiy at most 3 arguments */
+/* you can at most specifiy MAX_ARGS (3) number of arguments */
 static KeyBinding bindings[] = {
 	{ { MOD, 'c',          }, { create,         { NULL }                    } },
 	{ { MOD, 'C',          }, { create,         { NULL, NULL, "$CWD" }      } },
 	{ { MOD, 'x', 'x',     }, { killclient,     { NULL }                    } },
 	{ { MOD, 'j',          }, { focusnext,      { NULL }                    } },
-	{ { MOD, 'J',          }, { focusdown,      { NULL }                    } },
-	{ { MOD, 'K',          }, { focusup,        { NULL }                    } },
-	{ { MOD, 'H',          }, { focusleft,      { NULL }                    } },
-	{ { MOD, 'L',          }, { focusright,     { NULL }                    } },
+	{ { MOD, 'J',          }, { focusnextnm,    { NULL }                    } },
+	{ { MOD, 'K',          }, { focusprevnm,    { NULL }                    } },
 	{ { MOD, 'k',          }, { focusprev,      { NULL }                    } },
-	{ { MOD, 'f',          }, { setlayout,      { "[]=" }                   } },
-	{ { MOD, 'g',          }, { setlayout,      { "+++" }                   } },
-	{ { MOD, 'b',          }, { setlayout,      { "TTT" }                   } },
-	{ { MOD, 'm',          }, { setlayout,      { "[ ]" }                   } },
+	{ { MOD, 'f',          }, { setlayout,      { TILE_LAYOUT }             } },
+	{ { MOD, 'g',          }, { setlayout,      { GRID_LAYOUT }             } },
+	{ { MOD, 'b',          }, { setlayout,      { BSTK_LAYOUT }             } },
+	{ { MOD, 'm',          }, { setlayout,      { FSCR_LAYOUT }             } },
 	{ { MOD, ' ',          }, { setlayout,      { NULL }                    } },
 	{ { MOD, 'i',          }, { incnmaster,     { "+1" }                    } },
 	{ { MOD, 'd',          }, { incnmaster,     { "-1" }                    } },
@@ -116,16 +120,15 @@ static KeyBinding bindings[] = {
 	{ { MOD, 'a',          }, { togglerunall,   { NULL }                    } },
 	{ { MOD, CTRL('L'),    }, { redraw,         { NULL }                    } },
 	{ { MOD, 'r',          }, { redraw,         { NULL }                    } },
-	{ { MOD, 'e',          }, { copymode,       { "dvtm-editor" }           } },
-	{ { MOD, 'E',          }, { copymode,       { "dvtm-pager" }            } },
-	{ { MOD, '/',          }, { copymode,       { "dvtm-pager", "/" }       } },
+	{ { MOD, 'e',          }, { copymode,       { NULL }                    } },
+	{ { MOD, '/',          }, { copymode,       { "/" }                     } },
 	{ { MOD, 'p',          }, { paste,          { NULL }                    } },
-	{ { MOD, KEY_PPAGE,    }, { scrollback,     { "-1" }                    } },
-	{ { MOD, KEY_NPAGE,    }, { scrollback,     { "1"  }                    } },
+	{ { MOD, KEY_PPAGE,    }, { scrollback,     { "-" }                     } },
+	{ { MOD, KEY_NPAGE,    }, { scrollback,     { "+" }                     } },
 	{ { MOD, '?',          }, { create,         { "man dvtm", "dvtm help" } } },
 	{ { MOD, MOD,          }, { send,           { (const char []){MOD, 0} } } },
-	{ { KEY_SPREVIOUS,     }, { scrollback,     { "-1" }                    } },
-	{ { KEY_SNEXT,         }, { scrollback,     { "1"  }                    } },
+	{ { KEY_SPREVIOUS,     }, { scrollback,     { "-" }                     } },
+	{ { KEY_SNEXT,         }, { scrollback,     { "+"  }                    } },
 	{ { MOD, '0',          }, { view,           { NULL }                    } },
 	{ { MOD, KEY_F(1),     }, { view,           { tags[0] }                 } },
 	{ { MOD, KEY_F(2),     }, { view,           { tags[1] }                 } },
@@ -183,20 +186,15 @@ static const ColorRule colorrules[] = {
 
 #ifdef CONFIG_MOUSE
 static Button buttons[] = {
-	{ BUTTON1_CLICKED,        { mouse_focus,      { NULL  } } },
-	{ BUTTON1_DOUBLE_CLICKED, { mouse_fullscreen, { "[ ]" } } },
-	{ BUTTON2_CLICKED,        { mouse_zoom,       { NULL  } } },
-	{ BUTTON3_CLICKED,        { mouse_minimize,   { NULL  } } },
+	{ BUTTON1_CLICKED,        { mouse_focus,      { NULL        } } },
+	{ BUTTON1_DOUBLE_CLICKED, { mouse_fullscreen, { FSCR_LAYOUT } } },
+	{ BUTTON2_CLICKED,        { mouse_zoom,       { NULL        } } },
+	{ BUTTON3_CLICKED,        { mouse_minimize,   { NULL        } } },
 };
 #endif /* CONFIG_MOUSE */
 
 static Cmd commands[] = {
-	/* create [cmd]: create a new window, run `cmd` in the shell if specified */
-	{ "create", { create,	{ NULL } } },
-	/* focus <win_id>: focus the window whose `DVTM_WINDOW_ID` is `win_id` */
-	{ "focus",  { focusid,	{ NULL } } },
-	/* tag <win_id> <tag> [tag ...]: add +tag, remove -tag or set tag of the window with the given identifier */
-	{ "tag",    { tagid,	{ NULL } } },
+	{ "create", { create, { NULL } } },
 };
 
 /* gets executed when dvtm is started */
@@ -206,4 +204,20 @@ static Action actions[] = {
 
 static char const * const keytable[] = {
 	/* add your custom key escape sequences */
+};
+
+/* editor to use for copy mode. If neither of DVTM_EDITOR, EDITOR and PAGER is
+ * set the first entry is chosen. Otherwise the array is consulted for supported
+ * options. A %d in argv is replaced by the line number at which the file should
+ * be opened. If filter is true the editor is expected to work even if stdout is
+ * redirected (i.e. not a terminal). If color is true then color escape sequences
+ * are generated in the output.
+ */
+static Editor editors[] = {
+	{ .name = "vis",         .argv = { "vis",         "+%d", "-",   NULL }, .filter = true,  .color = false },
+	{ .name = "sandy",       .argv = { "sandy",       "-d",  "-",   NULL }, .filter = true,  .color = false },
+	{ .name = "dvtm-editor", .argv = { "dvtm-editor", "-",          NULL }, .filter = true,  .color = false },
+	{ .name = "vim",         .argv = { "vim",         "+%d", "-",   NULL }, .filter = false, .color = false },
+	{ .name = "less",        .argv = { "less",        "-R",  "+%d", NULL }, .filter = false, .color = true  },
+	{ .name = "more",        .argv = { "more",        "+%d",        NULL }, .filter = false, .color = false },
 };

@@ -25,26 +25,26 @@
 
 pid_t forkpty(int *master, char *name, struct termios *tio, struct winsize *ws)
 {
-	int	slave, fd;
-	char   *path;
-	pid_t	pid;
+	int slave, fd;
+	char *path;
+	pid_t pid;
 	struct termios tio2;
 
-	if ((*master = open("/dev/ptc", O_RDWR|O_NOCTTY)) == -1)
+	if ((*master = open("/dev/ptc", O_RDWR | O_NOCTTY)) < 0)
 		return -1;
 
-	if ((path = ttyname(*master)) == NULL)
+	if (!(path = ttyname(*master)))
 		goto out;
-	if ((slave = open(path, O_RDWR|O_NOCTTY)) == -1)
+	if ((slave = open(path, O_RDWR | O_NOCTTY)) < 0)
 		goto out;
 
-	switch (pid = fork()) {
-	case -1:
+	pid = fork();
+	if (pid < 0) {
 		goto out;
-	case 0:
+	} else {
 		close(*master);
 
-		fd = open(_PATH_TTY, O_RDWR|O_NOCTTY);
+		fd = open(_PATH_TTY, O_RDWR | O_NOCTTY);
 		if (fd >= 0) {
 			ioctl(fd, TIOCNOTTY, NULL);
 			close(fd);
@@ -52,7 +52,7 @@ pid_t forkpty(int *master, char *name, struct termios *tio, struct winsize *ws)
 
 		setsid();
 
-		fd = open(_PATH_TTY, O_RDWR|O_NOCTTY);
+		fd = open(_PATH_TTY, O_RDWR | O_NOCTTY);
 		if (fd >= 0)
 			return -1;
 
@@ -71,9 +71,9 @@ pid_t forkpty(int *master, char *name, struct termios *tio, struct winsize *ws)
 		if (tio != NULL)
 			memcpy(tio2.c_cc, tio->c_cc, sizeof tio2.c_cc);
 		tio2.c_cc[VERASE] = '\177';
-		if (tcsetattr(slave, TCSAFLUSH, &tio2) == -1)
+		if (tcsetattr(slave, TCSAFLUSH, &tio2) < 0)
 			return -1;
-		if (ioctl(slave, TIOCSWINSZ, ws) == -1)
+		if (ioctl(slave, TIOCSWINSZ, ws) < 0)
 			return -1;
 
 		dup2(slave, 0);
@@ -88,9 +88,9 @@ pid_t forkpty(int *master, char *name, struct termios *tio, struct winsize *ws)
 	return pid;
 
 out:
-	if (*master != -1)
+	if (*master >= 0)
 		close(*master);
-	if (slave != -1)
+	if (slave >= 0)
 		close(slave);
 	return -1;
 }

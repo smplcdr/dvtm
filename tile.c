@@ -7,7 +7,7 @@ static void tile(void)
 		if (!c->minimized)
 			n++;
 
-	m  = MAX(1, MIN(n, screen.nmaster));
+	m = MAX(1, MIN(n, screen.nmaster));
 	mw = n == m ? waw : screen.mfact * waw;
 	mh = wah / m;
 	th = n == m ? 0 : wah / (n - m);
@@ -17,17 +17,18 @@ static void tile(void)
 	for (i = 0, c = nextvisible(clients); c; c = nextvisible(c->next)) {
 		if (c->minimized)
 			continue;
-		if (i < m) {	/* master */
+		if (i < m) { /* master */
 			nw = mw;
 			nh = (i < m - 1) ? mh : (way + wah) - ny;
-		} else {	/* tile window */
+		} else {
+			/* tile window */
 			if (i == m) {
 				ny = way;
 				nx += mw;
 				mvvline(ny, nx, ACS_VLINE, wah);
 				mvaddch(ny, nx, ACS_TTEE);
 				nx++;
-				nw = waw - mw -1;
+				nw = waw - mw - 1;
 			}
 			nh = (i < n - 1) ? th : (way + wah) - ny;
 			if (i > m)

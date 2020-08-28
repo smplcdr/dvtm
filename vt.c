@@ -15,6 +15,7 @@
  * IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -39,12 +40,11 @@
 #elif defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 # include <util.h>
 #endif
-
 #include "vt.h"
 
-#ifdef _AIX
+#if defined(_AIX)
 # include "forkpty-aix.c"
-#elif defined __sun
+#elif defined(__sun)
 # include "forkpty-sunos.c"
 #endif
 
@@ -72,32 +72,32 @@
 # define MAX_COLOR_PAIRS COLOR_PAIRS
 #endif
 
-#if defined _AIX && defined CTRL
+#if defined(_AIX) && defined(CTRL)
 # undef CTRL
 #endif
 #ifndef CTRL
-# define CTRL(k)   ((k) & 0x1F)
+# define CTRL(k) ((k) & 0x1F)
 #endif
 
-#define IS_CONTROL(ch) !((ch) & 0xffffff60UL)
-#define MIN(x, y) ((x) < (y) ? (x) : (y))
-#define LENGTH(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define IS_CONTROL(ch)	(!((ch) & 0xFFFFFF60ul))
+#define MIN(x, y)	((x) < (y) ? (x) : (y))
+#define LENGTH(arr)	(sizeof(arr) / sizeof((arr)[0]))
 
 static bool is_utf8, has_default_colors;
-static short color_pairs_reserved, color_pairs_max, color_pair_current;
-static short *color2palette, default_fg, default_bg;
+static short int color_pairs_reserved, color_pairs_max, color_pair_current;
+static short int *color2palette, default_fg, default_bg;
 static char vt_term[32];
 
 typedef struct {
-	wchar_t text;
+	wchar_t wc;
 	attr_t attr;
-	short fg;
-	short bg;
+	short int fg;
+	short int bg;
 } Cell;
 
 typedef struct {
 	Cell *cells;
-	unsigned dirty:1;
+	bool dirty:1;
 } Row;
 
 /* Buffer holding the current terminal window content (as an array) as well
@@ -146,108 +146,109 @@ typedef struct {
  *                                   <-    cols    ->
  */
 typedef struct {
-	Row *lines;            /* array of Row pointers of size 'rows' */
-	Row *curs_row;         /* row on which the cursor currently resides */
-	Row *scroll_buf;       /* a ring buffer holding the scroll back content */
-	Row *scroll_top;       /* row in lines where scrolling region starts */
-	Row *scroll_bot;       /* row in lines where scrolling region ends */
-	bool *tabs;            /* a boolean flag for each column whether it is a tab */
-	int scroll_size;       /* maximal capacity of scroll back buffer (in lines) */
-	int scroll_index;      /* current index into the ring buffer */
-	int scroll_above;      /* number of lines above current viewport */
-	int scroll_below;      /* number of lines below current viewport */
-	int rows, cols;        /* current dimension of buffer */
-	int maxcols;           /* allocated cells (maximal cols over time) */
-	attr_t curattrs, savattrs; /* current and saved attributes for cells */
-	int curs_col;          /* current cursor column (zero based) */
-	int curs_srow, curs_scol; /* saved cursor row/colmn (zero based) */
-	short curfg, curbg;    /* current fore and background colors */
-	short savfg, savbg;    /* saved colors */
+	Row *lines;		/* array of Row pointers of size 'rows' */
+	Row *curs_row;		/* row on which the cursor currently resides */
+	Row *scroll_buf;	/* a ring buffer holding the scroll back content */
+	Row *scroll_top;	/* row in lines where scrolling region starts */
+	Row *scroll_bot;	/* row in lines where scrolling region ends */
+	bool *tabs;		/* a boolean flag for each column whether it is a tab */
+	int scroll_size;	/* maximal capacity of scroll back buffer (in lines) */
+	int scroll_index;	/* current index into the ring buffer */
+	int scroll_above;	/* number of lines above current viewport */
+	int scroll_below;	/* number of lines below current viewport */
+	int rows, cols;		/* current dimension of buffer */
+	int maxcols;		/* allocated cells (maximal cols over time) */
+	attr_t curattrs;	/* current attributes for cells */
+	attr_t savattrs;	/* saved attributes for cells */
+	int curs_col;		/* current cursor column (zero based) */
+	int curs_srow;		/* saved cursor row (zero based) */
+	int curs_scol;		/* saved cursor col (zero based) */
+	short int curfg, curbg;	/* current fore and background colors */
+	short int savfg, savbg;	/* saved colors */
 } Buffer;
 
 struct Vt {
-	Buffer buffer_normal;    /* normal screen buffer */
-	Buffer buffer_alternate; /* alternate screen buffer */
-	Buffer *buffer;          /* currently active buffer (one of the above) */
-	attr_t defattrs;         /* attributes to use for normal/empty cells */
-	short deffg, defbg;      /* colors to use for back normal/empty cells (white/black) */
-	int pty;                 /* master side pty file descriptor */
-	pid_t pid;               /* process id of the process running in this vt */
+	Buffer buffer_normal;		/* normal screen buffer */
+	Buffer buffer_alternate;	/* alternate screen buffer */
+	Buffer *buffer;			/* currently active buffer (one of the above) */
+	attr_t defattrs;		/* attributes to use for normal/empty cells */
+	short int deffg, defbg;		/* colors to use for back normal/empty cells (white/black) */
+	int pty;			/* master side pty file descriptor */
+	pid_t pid;			/* process id of the process running in this vt */
 	/* flags */
-	unsigned seen_input:1;
-	unsigned insert:1;
-	unsigned escaped:1;
-	unsigned curshid:1;
-	unsigned curskeymode:1;
-	unsigned bell:1;
-	unsigned relposmode:1;
-	unsigned mousetrack:1;
-	unsigned graphmode:1;
-	unsigned savgraphmode:1;
+	bool seen_input:1;
+	bool insert:1;
+	bool escaped:1;
+	bool curshid:1;
+	bool curskeymode:1;
+	bool bell:1;
+	bool relposmode:1;
+	bool mousetrack:1;
+	bool graphmode:1;
+	bool savgraphmode:1;
 	bool charsets[2];
 	/* buffers and parsing state */
 	char rbuf[BUFSIZ];
 	char ebuf[BUFSIZ];
 	unsigned int rlen, elen;
-	int srow, scol;          /* last known offset to display start row, start column */
-	char title[256];         /* xterm style window title */
-	vt_title_handler_t title_handler; /* hook which is called when title changes */
-	vt_urgent_handler_t urgent_handler; /* hook which is called upon bell */
-	void *data;              /* user supplied data */
+	int srow, scol;			/* last known offset to display start row, start column */
+	char title[256];		/* xterm style window title */
+	vt_title_handler_t title_handler;	/* hook which is called when title changes */
+	vt_urgent_handler_t urgent_handler;	/* hook which is called upon bell */
+	void *data;			/* user supplied data */
 };
 
-static const char *keytable[KEY_MAX+1] = {
-	[KEY_ENTER]     = "\r",
-	['\n']          = "\n",
+static const char *keytable[KEY_MAX + 1] = {
+	[KEY_ENTER]	= "\r",
+	['\n']		= "\n",
 	/* for the arrow keys the CSI / SS3 sequences are not stored here
-	 * because they depend on the current cursor terminal mode
-	 */
-	[KEY_UP]        = "A",
-	[KEY_DOWN]      = "B",
-	[KEY_RIGHT]     = "C",
-	[KEY_LEFT]      = "D",
+	 * because they depend on the current cursor terminal mode */
+	[KEY_UP]	= "A",
+	[KEY_DOWN]	= "B",
+	[KEY_RIGHT]	= "C",
+	[KEY_LEFT]	= "D",
 #ifdef KEY_SUP
-	[KEY_SUP]       = "\e[1;2A",
+	[KEY_SUP]	= "\e[1;2A",
 #endif
 #ifdef KEY_SDOWN
-	[KEY_SDOWN]     = "\e[1;2B",
+	[KEY_SDOWN]	= "\e[1;2B",
 #endif
-	[KEY_SRIGHT]    = "\e[1;2C",
-	[KEY_SLEFT]     = "\e[1;2D",
-	[KEY_BACKSPACE] = "\177",
-	[KEY_IC]        = "\e[2~",
-	[KEY_DC]        = "\e[3~",
-	[KEY_PPAGE]     = "\e[5~",
-	[KEY_NPAGE]     = "\e[6~",
-	[KEY_HOME]      = "\e[7~",
-	[KEY_END]       = "\e[8~",
-	[KEY_BTAB]      = "\e[Z",
-	[KEY_SUSPEND]   = "\x1A",  /* Ctrl+Z gets mapped to this */
-	[KEY_F(1)]      = "\e[11~",
-	[KEY_F(2)]      = "\e[12~",
-	[KEY_F(3)]      = "\e[13~",
-	[KEY_F(4)]      = "\e[14~",
-	[KEY_F(5)]      = "\e[15~",
-	[KEY_F(6)]      = "\e[17~",
-	[KEY_F(7)]      = "\e[18~",
-	[KEY_F(8)]      = "\e[19~",
-	[KEY_F(9)]      = "\e[20~",
-	[KEY_F(10)]     = "\e[21~",
-	[KEY_F(11)]     = "\e[23~",
-	[KEY_F(12)]     = "\e[24~",
-	[KEY_F(13)]     = "\e[23~",
-	[KEY_F(14)]     = "\e[24~",
-	[KEY_F(15)]     = "\e[25~",
-	[KEY_F(16)]     = "\e[26~",
-	[KEY_F(17)]     = "\e[28~",
-	[KEY_F(18)]     = "\e[29~",
-	[KEY_F(19)]     = "\e[31~",
-	[KEY_F(20)]     = "\e[32~",
-	[KEY_F(21)]     = "\e[33~",
-	[KEY_F(22)]     = "\e[34~",
-	[KEY_RESIZE]    = "",
+	[KEY_SRIGHT]	= "\e[1;2C",
+	[KEY_SLEFT]	= "\e[1;2D",
+	[KEY_BACKSPACE]	= "\177",
+	[KEY_IC]	= "\e[2~",
+	[KEY_DC]	= "\e[3~",
+	[KEY_PPAGE]	= "\e[5~",
+	[KEY_NPAGE]	= "\e[6~",
+	[KEY_HOME]	= "\e[7~",
+	[KEY_END]	= "\e[8~",
+	[KEY_BTAB]	= "\e[Z",
+	[KEY_SUSPEND]	= "\x1A", /* Ctrl+Z gets mapped to this */
+	[KEY_F(1)]	= "\e[11~",
+	[KEY_F(2)]	= "\e[12~",
+	[KEY_F(3)]	= "\e[13~",
+	[KEY_F(4)]	= "\e[14~",
+	[KEY_F(5)]	= "\e[15~",
+	[KEY_F(6)]	= "\e[17~",
+	[KEY_F(7)]	= "\e[18~",
+	[KEY_F(8)]	= "\e[19~",
+	[KEY_F(9)]	= "\e[20~",
+	[KEY_F(10)]	= "\e[21~",
+	[KEY_F(11)]	= "\e[23~",
+	[KEY_F(12)]	= "\e[24~",
+	[KEY_F(13)]	= "\e[23~",
+	[KEY_F(14)]	= "\e[24~",
+	[KEY_F(15)]	= "\e[25~",
+	[KEY_F(16)]	= "\e[26~",
+	[KEY_F(17)]	= "\e[28~",
+	[KEY_F(18)]	= "\e[29~",
+	[KEY_F(19)]	= "\e[31~",
+	[KEY_F(20)]	= "\e[32~",
+	[KEY_F(21)]	= "\e[33~",
+	[KEY_F(22)]	= "\e[34~",
+	[KEY_RESIZE]	= "",
 #ifdef KEY_EVENT
-	[KEY_EVENT]     = "",
+	[KEY_EVENT]	= "",
 #endif
 };
 
@@ -255,17 +256,16 @@ static void puttab(Vt *t, int count);
 static void process_nonprinting(Vt *t, wchar_t wc);
 static void send_curs(Vt *t);
 
-__attribute__ ((const))
+__attribute__((const))
 static attr_t build_attrs(attr_t curattrs)
 {
-	return ((curattrs & ~A_COLOR) | COLOR_PAIR(curattrs & 0xff))
-	    >> NCURSES_ATTR_SHIFT;
+	return ((curattrs & ~A_COLOR) | COLOR_PAIR(curattrs & 0xFF)) >> NCURSES_ATTR_SHIFT;
 }
 
 static void row_set(Row *row, int start, int len, Buffer *t)
 {
 	Cell cell = {
-		.text = L'\0',
+		.wc = L'\0',
 		.attr = t ? build_attrs(t->curattrs) : 0,
 		.fg = t ? t->curfg : -1,
 		.bg = t ? t->curbg : -1,
@@ -297,7 +297,7 @@ static void row_roll(Row *start, Row *end, int count)
 static void buffer_clear(Buffer *b)
 {
 	Cell cell = {
-		.text = L'\0',
+		.wc = L'\0',
 		.attr = A_NORMAL,
 		.fg = -1,
 		.bg = -1,
@@ -356,9 +356,10 @@ static void buffer_scroll(Buffer *b, int s)
 	row_roll(b->scroll_top, b->scroll_bot, s);
 	if (s < 0 && b->scroll_size) {
 		for (int i = (-s) - 1; i >= 0; i--) {
-			b->scroll_index--;
-			if (b->scroll_index == -1)
+			if (b->scroll_index == 0)
 				b->scroll_index = b->scroll_size - 1;
+			else
+				b->scroll_index--;
 
 			Row tmp = b->scroll_top[i];
 			b->scroll_top[i] = b->scroll_buf[b->scroll_index];
@@ -439,7 +440,7 @@ static void buffer_resize(Buffer *b, int rows, int cols)
 
 static bool buffer_init(Buffer *b, int rows, int cols, int scroll_size)
 {
-	b->curattrs = A_NORMAL;	/* white text over black background */
+	b->curattrs = A_NORMAL; /* white text over black background */
 	b->curfg = b->curbg = -1;
 	if (scroll_size < 0)
 		scroll_size = 0;
@@ -450,7 +451,8 @@ static bool buffer_init(Buffer *b, int rows, int cols, int scroll_size)
 	return true;
 }
 
-static void buffer_boundry(Buffer *b, Row **bs, Row **be, Row **as, Row **ae) {
+static void buffer_boundry(Buffer *b, Row **bs, Row **be, Row **as, Row **ae)
+{
 	if (bs)
 		*bs = NULL;
 	if (be)
@@ -466,17 +468,18 @@ static void buffer_boundry(Buffer *b, Row **bs, Row **be, Row **as, Row **ae) {
 		if (bs)
 			*bs = &b->scroll_buf[(b->scroll_index - b->scroll_above + b->scroll_size) % b->scroll_size];
 		if (be)
-			*be = &b->scroll_buf[(b->scroll_index-1 + b->scroll_size) % b->scroll_size];
+			*be = &b->scroll_buf[(b->scroll_index - 1 + b->scroll_size) % b->scroll_size];
 	}
 	if (b->scroll_below) {
 		if (as)
 			*as = &b->scroll_buf[b->scroll_index];
 		if (ae)
-			*ae = &b->scroll_buf[(b->scroll_index + b->scroll_below-1) % b->scroll_size];
+			*ae = &b->scroll_buf[(b->scroll_index + b->scroll_below - 1) % b->scroll_size];
 	}
 }
 
-static Row *buffer_row_first(Buffer *b) {
+static Row *buffer_row_first(Buffer *b)
+{
 	Row *bstart;
 	if (!b->scroll_size || !b->scroll_above)
 		return b->lines;
@@ -484,7 +487,8 @@ static Row *buffer_row_first(Buffer *b) {
 	return bstart;
 }
 
-static Row *buffer_row_last(Buffer *b) {
+static Row *buffer_row_last(Buffer *b)
+{
 	Row *aend;
 	if (!b->scroll_size || !b->scroll_below)
 		return b->lines + b->rows - 1;
@@ -683,7 +687,7 @@ static void interpret_csi_sgr(Vt *t, int param[], int pcount)
 		case 28:
 			b->curattrs &= ~A_INVIS;
 			break;
-		case 30 ... 37:	/* fg */
+		case 30 ... 37: /* fg */
 			b->curfg = param[i] - 30;
 			break;
 		case 38:
@@ -695,7 +699,7 @@ static void interpret_csi_sgr(Vt *t, int param[], int pcount)
 		case 39:
 			b->curfg = -1;
 			break;
-		case 40 ... 47:	/* bg */
+		case 40 ... 47: /* bg */
 			b->curbg = param[i] - 40;
 			break;
 		case 48:
@@ -707,7 +711,7 @@ static void interpret_csi_sgr(Vt *t, int param[], int pcount)
 		case 49:
 			b->curbg = -1;
 			break;
-		case 90 ... 97:	/* hi fg */
+		case 90 ... 97: /* hi fg */
 			b->curfg = param[i] - 82;
 			break;
 		case 100 ... 107: /* hi bg */
@@ -935,7 +939,7 @@ static void interpret_csi_decstbm(Vt *t, int param[], int pcount)
 		}
 		break;
 	default:
-		return;	/* malformed */
+		return; /* malformed */
 	}
 	b->curs_row = b->scroll_top;
 	b->curs_col = 0;
@@ -966,11 +970,12 @@ static void interpret_csi_priv_mode(Vt *t, int param[], int pcount, bool set)
 			t->curshid = !set;
 			break;
 		case 1049: /* combine 1047 + 1048 */
-		case 47:   /* use alternate/normal screen buffer */
+		case 47: /* use alternate/normal screen buffer */
 		case 1047:
 			if (!set)
 				buffer_clear(&t->buffer_alternate);
-			t->buffer = set ? &t->buffer_alternate : &t->buffer_normal;
+			t->buffer = set ? &t->buffer_alternate
+					: &t->buffer_normal;
 			vt_dirty(t);
 			if (param[i] != 1049)
 				break;
@@ -1002,7 +1007,7 @@ static void interpret_csi(Vt *t)
 			process_nonprinting(t, *p);
 		} else if (*p == ';') {
 			if (param_count >= LENGTH(csiparam))
-				return;	/* too long! */
+				return; /* too long! */
 			csiparam[param_count++] = 0;
 		} else if (isdigit((unsigned char)*p)) {
 			if (param_count == 0)
@@ -1147,7 +1152,8 @@ static void interpret_csi_scs(Vt *t)
 /* Interpret an 'operating system command' (OSC) sequence */
 static void interpret_osc(Vt *t)
 {
-	/* ESC ] command ; data BEL
+	/*
+	 * ESC ] command ; data BEL
 	 * ESC ] command ; data ESC \\
 	 * Note that BEL or ESC \\ have already been replaced with NUL.
 	 */
@@ -1158,7 +1164,7 @@ static void interpret_osc(Vt *t)
 		case 0: /* icon name and window title */
 		case 2: /* window title */
 			if (t->title_handler)
-				t->title_handler(t, data+1);
+				t->title_handler(t, data + 1);
 			break;
 		case 1: /* icon name */
 			break;
@@ -1182,7 +1188,7 @@ static void try_interpret_escape_seq(Vt *t)
 	case '#': /* ignore DECDHL, DECSWL, DECDWL, DECHCP, DECFPP */
 		if (t->elen == 2) {
 			if (lastchar == '8') { /* DECALN */
-				interpret_csi_ed(t, (int []){ 2 }, 1);
+				interpret_csi_ed(t, (int[]){ 2 }, 1);
 				goto handled;
 			}
 			goto cancel;
@@ -1196,8 +1202,7 @@ static void try_interpret_escape_seq(Vt *t)
 		}
 		break;
 	case ']': /* OSC - operating system command */
-		if (lastchar == '\a' ||
-		   (lastchar == '\\' && t->elen >= 2 && t->ebuf[t->elen - 2] == '\e')) {
+		if (lastchar == '\a' || (lastchar == '\\' && t->elen >= 2 && t->ebuf[t->elen - 2] == '\e')) {
 			t->elen -= lastchar == '\a' ? 1 : 2;
 			t->ebuf[t->elen] = '\0';
 			interpret_osc(t);
@@ -1235,19 +1240,18 @@ static void try_interpret_escape_seq(Vt *t)
 	}
 
 	if (t->elen + 1 >= sizeof(t->ebuf)) {
-cancel:
+	cancel:
 #ifndef NDEBUG
 		fprintf(stderr, "cancelled: \\033");
 		for (unsigned int i = 0; i < t->elen; i++) {
-			if (isprint(t->ebuf[i])) {
+			if (isprint(t->ebuf[i]))
 				fputc(t->ebuf[i], stderr);
-			} else {
+			else
 				fprintf(stderr, "\\%03o", t->ebuf[i]);
-			}
 		}
 		fputc('\n', stderr);
 #endif
-handled:
+	handled:
 		cancel_escape_sequence(t);
 	}
 }
@@ -1372,7 +1376,10 @@ static void put_wc(Vt *t, wchar_t wc)
 			width = 1;
 		}
 		Buffer *b = t->buffer;
-		Cell blank_cell = { L'\0', build_attrs(b->curattrs), b->curfg, b->curbg };
+		Cell blank_cell = { L'\0',
+				    build_attrs(b->curattrs),
+				    b->curfg,
+				    b->curbg };
 		if (width == 2 && b->curs_col == b->cols - 1) {
 			b->curs_row->cells[b->curs_col++] = blank_cell;
 			b->curs_row->dirty = true;
@@ -1391,7 +1398,7 @@ static void put_wc(Vt *t, wchar_t wc)
 		}
 
 		b->curs_row->cells[b->curs_col] = blank_cell;
-		b->curs_row->cells[b->curs_col++].text = wc;
+		b->curs_row->cells[b->curs_col++].wc = wc;
 		b->curs_row->dirty = true;
 		if (width == 2)
 			b->curs_row->cells[b->curs_col++] = blank_cell;
@@ -1403,7 +1410,7 @@ int vt_process(Vt *t)
 	int res;
 	unsigned int pos = 0;
 	mbstate_t ps;
-	memset(&ps, 0, sizeof(ps));
+	memset(&ps, 0, sizeof ps);
 
 	if (t->pty < 0) {
 		errno = EINVAL;
@@ -1422,13 +1429,13 @@ int vt_process(Vt *t)
 		len = (ssize_t)mbrtowc(&wc, t->rbuf + pos, t->rlen - pos, &ps);
 		if (len == -2) {
 			t->rlen -= pos;
-			memmove(t->rbuf, t->rbuf + pos, t->rlen);
+ 			memmove(t->rbuf, t->rbuf + pos, t->rlen);
 			return 0;
 		}
 
 		if (len == -1) {
 			len = 1;
-			wc = t->rbuf[pos];
+ 			wc = t->rbuf[pos];
 		}
 
 		pos += len ? len : 1;
@@ -1440,7 +1447,7 @@ int vt_process(Vt *t)
 	return 0;
 }
 
-void vt_default_colors_set(Vt *t, attr_t attrs, short fg, short bg)
+void vt_default_colors_set(Vt *t, attr_t attrs, short int fg, short int bg)
 {
 	t->defattrs = attrs;
 	t->deffg = fg;
@@ -1460,8 +1467,8 @@ Vt *vt_create(int rows, int cols, int scroll_size)
 	t->deffg = t->defbg = -1;
 	t->buffer = &t->buffer_normal;
 
-	if (!buffer_init(&t->buffer_normal, rows, cols, scroll_size) ||
-	    !buffer_init(&t->buffer_alternate, rows, cols, 0)) {
+	if (!buffer_init(&t->buffer_normal,    rows, cols, scroll_size)
+	 || !buffer_init(&t->buffer_alternate, rows, cols,           0)) {
 		free(t);
 		return NULL;
 	}
@@ -1522,9 +1529,10 @@ void vt_draw(Vt *t, WINDOW *win, int srow, int scol)
 		for (int j = 0; j < b->cols; j++) {
 			Cell *prev_cell = cell;
 			cell = row->cells + j;
-			if (!prev_cell || cell->attr != prev_cell->attr
-			    || cell->fg != prev_cell->fg
-			    || cell->bg != prev_cell->bg) {
+			if (!prev_cell
+			 || cell->attr != prev_cell->attr
+			 || cell->fg != prev_cell->fg
+			 || cell->bg != prev_cell->bg) {
 				if (cell->attr == A_NORMAL)
 					cell->attr = t->defattrs;
 				if (cell->fg == -1)
@@ -1532,19 +1540,22 @@ void vt_draw(Vt *t, WINDOW *win, int srow, int scol)
 				if (cell->bg == -1)
 					cell->bg = t->defbg;
 				wattrset(win, cell->attr << NCURSES_ATTR_SHIFT);
-				wcolor_set(win, vt_color_get(t, cell->fg, cell->bg), NULL);
+				wcolor_set(win,
+					   vt_color_get(t, cell->fg, cell->bg),
+					   NULL);
 			}
 
-			if (is_utf8 && cell->text >= 128) {
+			if (is_utf8 && cell->wc >= 128) {
 				char buf[MB_CUR_MAX + 1];
-				size_t len = wcrtomb(buf, cell->text, NULL);
+				size_t len = wcrtomb(buf, cell->wc, NULL);
 				if (len > 0) {
 					waddnstr(win, buf, len);
-					if (wcwidth(cell->text) > 1)
+					if (wcwidth(cell->wc) > 1)
 						j++;
 				}
 			} else {
-				waddch(win, cell->text > ' ' ? cell->text : ' ');
+				waddch(win,
+				       cell->wc > ' ' ? cell->wc : ' ');
 			}
 		}
 
@@ -1565,10 +1576,12 @@ void vt_scroll(Vt *t, int rows)
 	Buffer *b = t->buffer;
 	if (!b->scroll_size)
 		return;
-	if (rows < 0) { /* scroll back */
+	if (rows < 0) {
+		/* scroll back */
 		if (rows < -b->scroll_above)
 			rows = -b->scroll_above;
-	} else { /* scroll forward */
+	} else {
+		/* scroll forward */
 		if (rows > b->scroll_below)
 			rows = b->scroll_below;
 	}
@@ -1583,7 +1596,8 @@ void vt_noscroll(Vt *t)
 		vt_scroll(t, scroll_below);
 }
 
-pid_t vt_forkpty(Vt *t, const char *p, const char *argv[], const char *cwd, const char *env[], int *to, int *from)
+pid_t vt_forkpty(Vt *t, const char *p, const char *argv[], const char *cwd,
+		 const char *env[], int *to, int *from)
 {
 	int vt2ed[2], ed2vt[2];
 	struct winsize ws;
@@ -1680,7 +1694,8 @@ static void send_curs(Vt *t)
 {
 	Buffer *b = t->buffer;
 	char keyseq[16];
-	snprintf(keyseq, sizeof keyseq, "\e[%d;%dR", (int)(b->curs_row - b->lines), b->curs_col);
+	snprintf(keyseq, sizeof keyseq, "\e[%d;%dR",
+		 (int)(b->curs_row - b->lines), b->curs_col);
 	vt_write(t, keyseq, strlen(keyseq));
 }
 
@@ -1694,12 +1709,15 @@ void vt_keypress(Vt *t, int keycode)
 		case KEY_DOWN:
 		case KEY_RIGHT:
 		case KEY_LEFT: {
-			char keyseq[3] = { '\e', (t->curskeymode ? 'O' : '['), keytable[keycode][0] };
+			char keyseq[3] = { '\e',
+					   (t->curskeymode ? 'O' : '['),
+					   keytable[keycode][0] };
 			vt_write(t, keyseq, sizeof keyseq);
 			break;
 		}
 		default:
-			vt_write(t, keytable[keycode], strlen(keytable[keycode]));
+			vt_write(t, keytable[keycode],
+				 strlen(keytable[keycode]));
 		}
 	} else if (keycode <= UCHAR_MAX) {
 		char c = keycode;
@@ -1750,7 +1768,7 @@ void vt_mouse(Vt *t, int x, int y, mmask_t mask)
 #endif /* NCURSES_MOUSE_VERSION */
 }
 
-static unsigned int color_hash(short fg, short bg)
+static unsigned int color_hash(short int fg, short int bg)
 {
 	if (fg == -1)
 		fg = COLORS;
@@ -1759,7 +1777,7 @@ static unsigned int color_hash(short fg, short bg)
 	return fg * (COLORS + 2) + bg;
 }
 
-short vt_color_get(Vt *t, short fg, short bg)
+short int vt_color_get(Vt *t, short int fg, short int bg)
 {
 	if (fg >= COLORS)
 		fg = (t ? t->deffg : default_fg);
@@ -1777,8 +1795,8 @@ short vt_color_get(Vt *t, short fg, short bg)
 		return 0;
 	unsigned int index = color_hash(fg, bg);
 	if (color2palette[index] == 0) {
-		short oldfg, oldbg;
-		for (;;) {
+		short int oldfg, oldbg;
+		while (1) {
 			if (++color_pair_current >= color_pairs_max)
 				color_pair_current = color_pairs_reserved + 1;
 			pair_content(color_pair_current, &oldfg, &oldbg);
@@ -1786,18 +1804,19 @@ short vt_color_get(Vt *t, short fg, short bg)
 			if (color2palette[old_index] >= 0) {
 				if (init_pair(color_pair_current, fg, bg) == OK) {
 					color2palette[old_index] = 0;
-					color2palette[index] = color_pair_current;
+					color2palette[index] =
+						color_pair_current;
 				}
 				break;
 			}
 		}
 	}
 
-	short color_pair = color2palette[index];
+	short int color_pair = color2palette[index];
 	return color_pair >= 0 ? color_pair : -color_pair;
 }
 
-short vt_color_reserve(short fg, short bg)
+short int vt_color_reserve(short int fg, short int bg)
 {
 	if (!color2palette || fg >= COLORS || bg >= COLORS)
 		return 0;
@@ -1812,7 +1831,7 @@ short vt_color_reserve(short fg, short bg)
 		if (init_pair(color_pairs_reserved + 1, fg, bg) == OK)
 			color2palette[index] = -(++color_pairs_reserved);
 	}
-	short color_pair = color2palette[index];
+	short int color_pair = color2palette[index];
 	return color_pair >= 0 ? color_pair : -color_pair;
 }
 
@@ -1826,14 +1845,14 @@ static void init_colors(void)
 	has_default_colors = (use_default_colors() == OK);
 	color_pairs_max = MIN(MAX_COLOR_PAIRS, SHRT_MAX);
 	if (COLORS)
-		color2palette = calloc((COLORS + 2) * (COLORS + 2), sizeof(short));
+		color2palette =	calloc((COLORS + 2) * (COLORS + 2), sizeof(short int));
 	/*
 	 * XXX: On undefined color-pairs NetBSD curses pair_content() set fg
 	 *      and bg to default colors while ncurses set them respectively to
 	 *      0 and 0. Initialize all color-pairs in order to have consistent
 	 *      behaviour despite the implementation used.
 	 */
-	for (short i = 1; i < color_pairs_max; i++)
+	for (short int i = 1; i < color_pairs_max; i++)
 		init_pair(i, 0, 0);
 	vt_color_reserve(COLOR_WHITE, COLOR_BLACK);
 }
@@ -1845,10 +1864,11 @@ void vt_init(void)
 	char *term = getenv("DVTM_TERM");
 	if (!term)
 		term = "dvtm";
-	snprintf(vt_term, sizeof vt_term, "%s%s", term, COLORS >= 256 ? "-256color" : "");
+	snprintf(vt_term, sizeof vt_term, "%s%s", term,
+		 COLORS >= 256 ? "-256color" : "");
 }
 
-void vt_keytable_set(const char * const keytable_overlay[], int count)
+void vt_keytable_set(const char *const keytable_overlay[], int count)
 {
 	for (int k = 0; k < count && k < KEY_MAX; k++) {
 		const char *keyseq = keytable_overlay[k];
@@ -1906,45 +1926,53 @@ size_t vt_content_get(Vt *t, char **buf, bool colored)
 	char *s = *buf;
 	Cell *prev_cell = NULL;
 
-	for (Row *row = buffer_row_first(b); row; row = buffer_row_next(b, row)) {
+	for (Row *row = buffer_row_first(b); row;
+	     row = buffer_row_next(b, row)) {
 		size_t len = 0;
 		char *last_non_space = s;
 		for (int col = 0; col < b->cols; col++) {
 			Cell *cell = row->cells + col;
 			if (colored) {
 				int esclen = 0;
-				if (!prev_cell || cell->attr != prev_cell->attr) {
+				if (!prev_cell
+				 || cell->attr != prev_cell->attr) {
 					attr_t attr = cell->attr << NCURSES_ATTR_SHIFT;
 					esclen = sprintf(s, "\033[0%s%s%s%s%s%sm",
-						attr & A_BOLD ? ";1" : "",
-						attr & A_DIM ? ";2" : "",
-						attr & A_UNDERLINE ? ";4" : "",
-						attr & A_BLINK ? ";5" : "",
-						attr & A_REVERSE ? ";7" : "",
-						attr & A_INVIS ? ";8" : "");
+							 attr & A_BOLD      ? ";1" : "",
+							 attr & A_DIM       ? ";2" : "",
+							 attr & A_UNDERLINE ? ";4" : "",
+							 attr & A_BLINK     ? ";5" : "",
+							 attr & A_REVERSE   ? ";7" : "",
+							 attr & A_INVIS     ? ";8" : "");
 					if (esclen > 0)
 						s += esclen;
 				}
-				if (!prev_cell || cell->fg != prev_cell->fg || cell->attr != prev_cell->attr) {
+				if (!prev_cell
+				 || cell->fg != prev_cell->fg
+				 || cell->attr != prev_cell->attr) {
 					if (cell->fg == -1)
 						esclen = sprintf(s, "\033[39m");
 					else
-						esclen = sprintf(s, "\033[38;5;%dm", cell->fg);
+						esclen = sprintf(s, "\033[38;5;%dm",
+								 cell->fg);
 					if (esclen > 0)
 						s += esclen;
 				}
-				if (!prev_cell || cell->bg != prev_cell->bg || cell->attr != prev_cell->attr) {
+				if (!prev_cell
+				 || cell->bg != prev_cell->bg
+				 || cell->attr != prev_cell->attr) {
 					if (cell->bg == -1)
 						esclen = sprintf(s, "\033[49m");
 					else
-						esclen = sprintf(s, "\033[48;5;%dm", cell->bg);
+						esclen = sprintf(s, "\033[48;5;%dm",
+								 cell->bg);
 					if (esclen > 0)
 						s += esclen;
 				}
 				prev_cell = cell;
 			}
-			if (cell->text) {
-				len = wcrtomb(s, cell->text, &ps);
+			if (cell->wc) {
+				len = wcrtomb(s, cell->wc, &ps);
 				if (len > 0)
 					s += len;
 				last_non_space = s;

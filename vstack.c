@@ -8,7 +8,7 @@ static void vstack(void)
 		if (!c->minimized)
 			n++;
 
-	m  = MAX(1, MIN(n, screen.nmaster));
+	m = MAX(1, MIN(n, screen.nmaster));
 	mh = (n == m ? wah : screen.mfact * wah);
 	th = n == m ? 0 : (wah - mh) / (n - m);
 	ny = way;
@@ -16,10 +16,13 @@ static void vstack(void)
 	for (i = 0, c = nextvisible(clients); c; c = nextvisible(c->next)) {
 		if (c->minimized)
 			continue;
-		if (i < m) /* master */
+		if (i < m) {
+			/* master */
 			nh = (i < m - 1) ? mh / m : (way + mh) - ny;
-		else /* tile window */
+		} else
+			/* tile window */
 			nh = (i < n - 1) ? th : (way + wah) - ny;
+		}
 		resize(c, wax, ny, waw, nh);
 		ny += nh;
 		i++;

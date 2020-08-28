@@ -19,7 +19,8 @@ static void grid(void)
 			continue;
 		/* if there are less clients in the last row than normal adjust the
 		 * split rate to fill the empty space */
-		if (rows > 1 && i == (rows * cols) - cols && (n - i) <= (n % cols))
+		if (rows > 1 && i == (rows * cols) - cols &&
+		    (n - i) <= (n % cols))
 			nw = waw / (n - i);
 		nx = (i % cols) * nw + wax;
 		ny = (i / cols) * nh + way;
@@ -36,9 +37,8 @@ static void grid(void)
 			/* if we are on the first row, or on the last one and there are fewer clients
 			 * than normal whose border does not match the line above, print a top tree char
 			 * otherwise a plus sign. */
-			if (i <= cols
-			    || (i >= rows * cols - cols && n % cols
-				&& (cols - (n % cols)) % 2))
+			if (i <= cols || (i >= rows * cols - cols && n % cols &&
+					  (cols - (n % cols)) % 2))
 				mvaddch(ny, nx, ACS_TTEE);
 			else
 				mvaddch(ny, nx, ACS_PLUS);
