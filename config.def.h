@@ -14,12 +14,14 @@
 
 enum {
 	DEFAULT,
+	GREEN,
 	BLUE,
 };
 
 static Color colors[] = {
-	[DEFAULT] = { .fg = -1,         .bg = -1, .fg256 = -1, .bg256 = -1, },
-	[BLUE]    = { .fg = COLOR_BLUE, .bg = -1, .fg256 = 68, .bg256 = -1, },
+	[DEFAULT] = { .fg = -1,          .bg = -1, .fg256 = -1, .bg256 = -1, },
+	[GREEN]   = { .fg = COLOR_GREEN, .bg = -1, .fg256 = 71, .bg256 = -1, },
+	[BLUE]    = { .fg = COLOR_BLUE,  .bg = -1, .fg256 = 68, .bg256 = -1, },
 };
 
 #define COLOR(c)        COLOR_PAIR(colors[c].pair)
@@ -43,7 +45,7 @@ static Color colors[] = {
 /* number of clients in master area */
 #define NMASTER		1
 /* scroll back buffer size in lines */
-#define SCROLL_HISTORY	500
+#define SCROLL_HISTORY	1024
 /* printf format string for the tag in the status bar */
 #define TAG_SYMBOL	"[%s]"
 /* curses attributes for the currently selected tags */
@@ -55,7 +57,7 @@ static Color colors[] = {
 /* curses attributes for not selected tags which with urgent windows */
 #define TAG_URGENT	(COLOR(BLUE) | A_NORMAL | A_BLINK)
 
-const char tags[][8] = { "1", "2", "3", "4", "5" };
+const char tags[][8] = { "1", "2", "3", "4", "5", "6" };
 
 #include "tile.c"
 #include "grid.c"
@@ -143,6 +145,7 @@ static KeyBinding bindings[] = {
 	TAGKEYS( '3',                              2)
 	TAGKEYS( '4',                              3)
 	TAGKEYS( '5',                              4)
+	TAGKEYS( '6',                              5)
 };
 
 static const ColorRule colorrules[] = {

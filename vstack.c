@@ -1,7 +1,7 @@
 /* A vertical stack layout, all windows have the full screen width. */
 static void vstack(void)
 {
-	unsigned int i, n, ny, nh, m, mh, th;
+	int i, n, ny, nh, m, mh, th;
 	Client *c;
 
 	for (n = 0, c = nextvisible(clients); c; c = nextvisible(c->next))

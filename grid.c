@@ -1,6 +1,6 @@
 static void grid(void)
 {
-	unsigned int i, n, nx, ny, nw, nh, aw, ah, cols, rows;
+	int i, n, nx, ny, nw, nh, aw, ah, cols, rows;
 	Client *c;
 
 	for (n = 0, c = nextvisible(clients); c; c = nextvisible(c->next))

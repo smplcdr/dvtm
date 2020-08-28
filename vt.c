@@ -628,7 +628,7 @@ static bool is_valid_csi_ender(int c)
 }
 
 /* interprets a 'set attribute' (SGR) CSI escape sequence */
-static void interpret_csi_sgr(Vt *t, int param[], int pcount)
+static void interpret_csi_sgr(Vt *t, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	if (pcount == 0) {
@@ -638,7 +638,7 @@ static void interpret_csi_sgr(Vt *t, int param[], int pcount)
 		return;
 	}
 
-	for (int i = 0; i < pcount; i++) {
+	for (unsigned int i = 0; i < pcount; i++) {
 		switch (param[i]) {
 		case 0:
 			b->curattrs = A_NORMAL;
@@ -724,7 +724,7 @@ static void interpret_csi_sgr(Vt *t, int param[], int pcount)
 }
 
 /* interprets an 'erase display' (ED) escape sequence */
-static void interpret_csi_ed(Vt *t, int param[], int pcount)
+static void interpret_csi_ed(Vt *t, int param[], unsigned int pcount)
 {
 	Row *row, *start, *end;
 	Buffer *b = t->buffer;
@@ -753,7 +753,7 @@ static void interpret_csi_ed(Vt *t, int param[], int pcount)
 }
 
 /* interprets a 'move cursor' (CUP) escape sequence */
-static void interpret_csi_cup(Vt *t, int param[], int pcount)
+static void interpret_csi_cup(Vt *t, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	Row *lines = t->relposmode ? b->scroll_top : b->lines;
@@ -774,7 +774,7 @@ static void interpret_csi_cup(Vt *t, int param[], int pcount)
 
 /* Interpret the 'relative mode' sequences: CUU, CUD, CUF, CUB, CNL,
  * CPL, CHA, HPR, VPA, VPR, HPA */
-static void interpret_csi_c(Vt *t, char verb, int param[], int pcount)
+static void interpret_csi_c(Vt *t, char verb, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	int n = (pcount && param[0] > 0) ? param[0] : 1;
@@ -815,7 +815,7 @@ static void interpret_csi_c(Vt *t, char verb, int param[], int pcount)
 }
 
 /* Interpret the 'erase line' escape sequence */
-static void interpret_csi_el(Vt *t, int param[], int pcount)
+static void interpret_csi_el(Vt *t, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	switch (pcount ? param[0] : 0) {
@@ -832,7 +832,7 @@ static void interpret_csi_el(Vt *t, int param[], int pcount)
 }
 
 /* Interpret the 'insert blanks' sequence (ICH) */
-static void interpret_csi_ich(Vt *t, int param[], int pcount)
+static void interpret_csi_ich(Vt *t, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	Row *row = b->curs_row;
@@ -848,7 +848,7 @@ static void interpret_csi_ich(Vt *t, int param[], int pcount)
 }
 
 /* Interpret the 'delete chars' sequence (DCH) */
-static void interpret_csi_dch(Vt *t, int param[], int pcount)
+static void interpret_csi_dch(Vt *t, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	Row *row = b->curs_row;
@@ -864,7 +864,7 @@ static void interpret_csi_dch(Vt *t, int param[], int pcount)
 }
 
 /* Interpret an 'insert line' sequence (IL) */
-static void interpret_csi_il(Vt *t, int param[], int pcount)
+static void interpret_csi_il(Vt *t, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	int n = (pcount && param[0] > 0) ? param[0] : 1;
@@ -880,7 +880,7 @@ static void interpret_csi_il(Vt *t, int param[], int pcount)
 }
 
 /* Interpret a 'delete line' sequence (DL) */
-static void interpret_csi_dl(Vt *t, int param[], int pcount)
+static void interpret_csi_dl(Vt *t, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	int n = (pcount && param[0] > 0) ? param[0] : 1;
@@ -896,7 +896,7 @@ static void interpret_csi_dl(Vt *t, int param[], int pcount)
 }
 
 /* Interpret an 'erase characters' (ECH) sequence */
-static void interpret_csi_ech(Vt *t, int param[], int pcount)
+static void interpret_csi_ech(Vt *t, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	int n = (pcount && param[0] > 0) ? param[0] : 1;
@@ -908,7 +908,7 @@ static void interpret_csi_ech(Vt *t, int param[], int pcount)
 }
 
 /* Interpret a 'set scrolling region' (DECSTBM) sequence */
-static void interpret_csi_decstbm(Vt *t, int param[], int pcount)
+static void interpret_csi_decstbm(Vt *t, int param[], unsigned int pcount)
 {
 	Buffer *b = t->buffer;
 	int new_top, new_bot;
@@ -945,9 +945,9 @@ static void interpret_csi_decstbm(Vt *t, int param[], int pcount)
 	b->curs_col = 0;
 }
 
-static void interpret_csi_mode(Vt *t, int param[], int pcount, bool set)
+static void interpret_csi_mode(Vt *t, int param[], unsigned int pcount, bool set)
 {
-	for (int i = 0; i < pcount; i++) {
+	for (unsigned int i = 0; i < pcount; i++) {
 		switch (param[i]) {
 		case 4: /* insert/replace mode */
 			t->insert = set;
@@ -956,9 +956,9 @@ static void interpret_csi_mode(Vt *t, int param[], int pcount, bool set)
 	}
 }
 
-static void interpret_csi_priv_mode(Vt *t, int param[], int pcount, bool set)
+static void interpret_csi_priv_mode(Vt *t, int param[], unsigned int pcount, bool set)
 {
-	for (int i = 0; i < pcount; i++) {
+	for (unsigned int i = 0; i < pcount; i++) {
 		switch (param[i]) {
 		case 1: /* set application/normal cursor key mode (DECCKM) */
 			t->curskeymode = set;
@@ -1674,17 +1674,21 @@ int vt_pty_get(Vt *t)
 
 ssize_t vt_write(Vt *t, const char *buf, size_t len)
 {
-	ssize_t ret = len;
+	if (len > SSIZE_MAX)
+		return -1;
 
-	while (len > 0) {
-		ssize_t res = write(t->pty, buf, len);
-		if (res < 0) {
+	ssize_t ret, rest;
+	ret = rest = (ssize_t)len;
+
+	while (rest > 0) {
+		ssize_t written = write(t->pty, buf, rest);
+		if (written < 0) {
 			if (errno != EAGAIN && errno != EINTR)
 				return -1;
 			continue;
 		}
-		buf += res;
-		len -= res;
+		buf += written;
+		rest -= written;
 	}
 
 	return ret;
@@ -1804,8 +1808,7 @@ short int vt_color_get(Vt *t, short int fg, short int bg)
 			if (color2palette[old_index] >= 0) {
 				if (init_pair(color_pair_current, fg, bg) == OK) {
 					color2palette[old_index] = 0;
-					color2palette[index] =
-						color_pair_current;
+					color2palette[index] = color_pair_current;
 				}
 				break;
 			}

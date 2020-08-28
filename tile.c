@@ -1,6 +1,6 @@
 static void tile(void)
 {
-	unsigned int i, n, nx, ny, nw, nh, m, mw, mh, th;
+	int i, n, nx, ny, nw, nh, m, mw, mh, th;
 	Client *c;
 
 	for (n = 0, c = nextvisible(clients); c; c = nextvisible(c->next))

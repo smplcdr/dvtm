@@ -35,7 +35,7 @@
 #include <errno.h>
 #include <pwd.h>
 #if defined(__CYGWIN__) || defined(__sun)
-#include <termios.h>
+# include <termios.h>
 #endif
 #include "vt.h"
 
@@ -44,12 +44,12 @@ int ESCDELAY;
 #endif
 
 #ifndef NCURSES_REENTRANT
-#define set_escdelay(d) (ESCDELAY = (d))
+# define set_escdelay(d) (ESCDELAY = (d))
 #endif
 
 typedef struct {
 	float mfact;
-	unsigned int nmaster;
+	int nmaster;
 	int history;
 	int w;
 	int h;
@@ -226,7 +226,7 @@ static Client *nextvisible(Client *c);
 static void focus(Client *c);
 static void resize(Client *c, int x, int y, int w, int h);
 extern Screen screen;
-static unsigned int waw, wah, wax, way;
+static int waw, wah, wax, way;
 static Client *clients = NULL;
 static char *title;
 
@@ -360,7 +360,7 @@ static void drawbar(void)
 		printw(TAG_SYMBOL, tags[i]);
 	}
 
-	attrset(runinall ? TAG_SEL : TAG_NORMAL);
+	attrset(COLOR(GREEN) | (runinall ? TAG_SEL : TAG_NORMAL));
 	addstr(layout->symbol);
 	attrset(TAG_NORMAL);
 
@@ -476,7 +476,8 @@ static void draw_all(void)
 
 static void arrange(void)
 {
-	unsigned int m = 0, n = 0;
+	int m = 0;
+	unsigned int n = 0;
 	for (Client *c = nextvisible(clients); c; c = nextvisible(c->next)) {
 		c->order = ++n;
 		if (c->minimized)
@@ -495,7 +496,7 @@ static void arrange(void)
 		wah--;
 	layout->arrange();
 	if (m && !isarrange(fullscreen)) {
-		unsigned int i = 0, nw = waw / m, nx = wax;
+		int i = 0, nw = waw / m, nx = wax;
 		for (Client *c = nextvisible(clients); c;
 		     c = nextvisible(c->next)) {
 			if (c->minimized) {
@@ -519,7 +520,7 @@ static void attach(Client *c)
 	c->next = clients;
 	c->prev = NULL;
 	clients = c;
-	for (int o = 1; c; c = nextvisible(c->next), o++)
+	for (unsigned int o = 1; c; c = nextvisible(c->next), o++)
 		c->order = o;
 }
 
@@ -537,7 +538,7 @@ static void attachafter(Client *c, Client *a)
 		c->next = a->next;
 		c->prev = a;
 		a->next = c;
-		for (int o = a->order; c; c = nextvisible(c->next))
+		for (unsigned int o = a->order; c; c = nextvisible(c->next))
 			c->order = ++o;
 	}
 }
@@ -696,7 +697,7 @@ static void resize(Client *c, int x, int y, int w, int h)
 	move_client(c, x, y);
 }
 
-static Client *get_client_by_coord(unsigned int x, unsigned int y)
+static Client *get_client_by_coord(int x, int y)
 {
 	if (y < way || y >= way + wah)
 		return NULL;
@@ -863,8 +864,7 @@ static void toggletag(const char *args[])
 
 static void toggleview(const char *args[])
 {
-	unsigned int newtagset = tagset[seltags] ^
-				 (bitoftag(args[0]) & TAGMASK);
+	unsigned int newtagset = tagset[seltags] ^ (bitoftag(args[0]) & TAGMASK);
 	if (newtagset) {
 		tagset[seltags] = newtagset;
 		tagschanged();
@@ -1145,19 +1145,22 @@ static void copymode(const char *args[])
 
 	if (sel->editor_fds[0] >= 0) {
 		char *buf = NULL;
-		size_t len = vt_content_get(sel->app, &buf, colored);
+		/* hope, that len is less or equal than SSIZE_MAX */
+		ssize_t rest = (ssize_t)vt_content_get(sel->app, &buf, colored);
 		char *cur = buf;
-		while (len > 0) {
-			ssize_t res = write(sel->editor_fds[0], cur, len);
-			if (res < 0) {
+
+		while (rest > 0) {
+			ssize_t written = write(sel->editor_fds[0], cur, rest);
+			if (written < 0) {
 				if (errno == EAGAIN || errno == EINTR)
 					continue;
 				break;
 			}
-			cur += res;
-			len -= res;
+			cur += written;
+			rest -= written;
 		}
-		free(buf);
+		if (buf)
+			free(buf);
 		close(sel->editor_fds[0]);
 		sel->editor_fds[0] = -1;
 	}
@@ -1169,7 +1172,7 @@ static void copymode(const char *args[])
 static void focusn(const char *args[])
 {
 	for (Client *c = nextvisible(clients); c; c = nextvisible(c->next)) {
-		if (c->order == atoi(args[0])) {
+		if (c->order == (unsigned int)strtoul(args[0], NULL, 10)) {
 			focus(c);
 			if (c->minimized)
 				toggleminimize(NULL);
@@ -1262,7 +1265,7 @@ static void focusprevnm(const char *args[])
 
 static void focuslast(const char *args[])
 {
-	if (lastsel)
+	if (lastsel && isvisible(lastsel))
 		focus(lastsel);
 }
 
@@ -1457,13 +1460,12 @@ static void togglebarpos(const char *args[])
 static void toggleminimize(const char *args[])
 {
 	Client *c, *m, *t;
-	unsigned int n;
+	int n;
 	if (!sel)
 		return;
 	/* the last window can't be minimized */
 	if (!sel->minimized) {
-		for (n = 0, c = nextvisible(clients); c;
-		     c = nextvisible(c->next))
+		for (n = 0, c = nextvisible(clients); c; c = nextvisible(c->next))
 			if (!c->minimized)
 				n++;
 		if (n == 1)
@@ -1486,11 +1488,11 @@ static void toggleminimize(const char *args[])
 		 * minimized ones */
 		focusnextnm(NULL);
 		detach(m);
-		for (c = nextvisible(clients);
-		     c && (t = nextvisible(c->next)) && !t->minimized; c = t)
+		for (c = nextvisible(clients); c && (t = nextvisible(c->next)) && !t->minimized; c = t)
 			;
 		attachafter(m, c);
-	} else { /* window is no longer minimized, move it to the master area */
+	} else {
+		/* window is no longer minimized, move it to the master area */
 		vt_dirty(m->term);
 		detach(m);
 		attach(m);
@@ -1835,11 +1837,12 @@ static bool parse_args(int argc, char *argv[])
 			updatebarpos();
 			break;
 		case 'c': {
-			const char *fifo;
+			char *fifo;
 			cmdfifo.fd = open_or_create_fifo(argv[++arg], &cmdfifo.file);
 			if (!(fifo = realpath(argv[arg], NULL)))
 				error("%s\n", strerror(errno));
 			setenv("DVTM_CMD_FIFO", fifo, 1);
+			free(fifo);
 			break;
 		}
 		default:

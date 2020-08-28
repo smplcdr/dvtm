@@ -1,6 +1,6 @@
 static void fibonacci(int s)
 {
-	unsigned int nx, ny, nw, nnw, nh, nnh, i, n, mod;
+	int nx, ny, nw, nnw, nh, nnh, i, n, mod;
 	Client *c;
 
 	for (n = 0, c = nextvisible(clients); c; c = nextvisible(c->next))
