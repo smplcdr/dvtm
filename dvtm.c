@@ -1385,13 +1385,19 @@ static void redraw(const char *args[])
 
 static void scrollback(const char *args[])
 {
+	int div = 0;
 	if (!is_content_visible(sel))
 		return;
 
-	if (!args[0] || atoi(args[0]) < 0)
-		vt_scroll(sel->term, -sel->h / 2);
+	if (args[0])
+		div = atoi(args[0]);
+	if (!div)
+		div = -2;
+
+	if (div > sel->h)
+		vt_scroll(sel->term, abs(div) / div);
 	else
-		vt_scroll(sel->term, sel->h / 2);
+		vt_scroll(sel->term, sel->h / div);
 
 	draw(sel);
 	curs_set(vt_cursor_visible(sel->term));

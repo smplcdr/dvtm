@@ -125,12 +125,12 @@ static KeyBinding bindings[] = {
 	{ { MOD, 'e',          }, { copymode,       { NULL }                    } },
 	{ { MOD, '/',          }, { copymode,       { "/" }                     } },
 	{ { MOD, 'p',          }, { paste,          { NULL }                    } },
-	{ { MOD, KEY_PPAGE,    }, { scrollback,     { "-" }                     } },
-	{ { MOD, KEY_NPAGE,    }, { scrollback,     { "+" }                     } },
+	{ { MOD, KEY_PPAGE,    }, { scrollback,     { "-2" }                     } },
+	{ { MOD, KEY_NPAGE,    }, { scrollback,     { "+2" }                     } },
 	{ { MOD, '?',          }, { create,         { "man dvtm", "dvtm help" } } },
 	{ { MOD, MOD,          }, { send,           { (const char []){MOD, 0} } } },
-	{ { KEY_SPREVIOUS,     }, { scrollback,     { "-" }                     } },
-	{ { KEY_SNEXT,         }, { scrollback,     { "+"  }                    } },
+	{ { KEY_SPREVIOUS,     }, { scrollback,     { "-2" }                     } },
+	{ { KEY_SNEXT,         }, { scrollback,     { "+2"  }                    } },
 	{ { MOD, '0',          }, { view,           { NULL }                    } },
 	{ { MOD, KEY_F(1),     }, { view,           { tags[0] }                 } },
 	{ { MOD, KEY_F(2),     }, { view,           { tags[1] }                 } },
@@ -182,17 +182,25 @@ static const ColorRule colorrules[] = {
  */
 
 #ifdef NCURSES_MOUSE_VERSION
-# define CONFIG_MOUSE /* compile in mouse support if we build against ncurses */
+# define CONFIG_MOUSE 1 /* compile in mouse support if we build against ncurses */
+#else
+# warning "Compiling without mouse support."
 #endif
 
-#define ENABLE_MOUSE true /* whether to enable mouse events by default */
+#define ENABLE_MOUSE 1 /* whether to enable mouse events by default */
 
-#ifdef CONFIG_MOUSE
+#if CONFIG_MOUSE
 static Button buttons[] = {
 	{ BUTTON1_CLICKED,        { mouse_focus,      { NULL        } } },
 	{ BUTTON1_DOUBLE_CLICKED, { mouse_fullscreen, { FSCR_LAYOUT } } },
 	{ BUTTON2_CLICKED,        { mouse_zoom,       { NULL        } } },
 	{ BUTTON3_CLICKED,        { mouse_minimize,   { NULL        } } },
+#if NCURSES_MOUSE_VERSION > 1
+	{ BUTTON4_PRESSED,        { scrollback,       { "-4"        } } },
+	{ BUTTON5_PRESSED,        { scrollback,       { "+4"        } } },
+#else
+# warning "Compiling without mouse wheel support."
+#endif
 };
 #endif /* CONFIG_MOUSE */
 
