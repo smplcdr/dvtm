@@ -1169,11 +1169,14 @@ static void copymode(const char *args[])
 	snprintf(argline, sizeof(argline), "+%d", line);
 	argv[1] = argline;
 
-	if (vt_forkpty(sel->editor, args[0], argv, NULL, NULL, to, from) < 0) {
+	char *cwd = getcwd_by_pid(sel);
+	if (vt_forkpty(sel->editor, args[0], argv, cwd, NULL, to, from) < 0) {
+		free(cwd);
 		vt_destroy(sel->editor);
 		sel->editor = NULL;
 		return;
 	}
+	free(cwd);
 
 	sel->term = sel->editor;
 
