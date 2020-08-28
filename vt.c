@@ -40,6 +40,7 @@
 #elif defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
 # include <util.h>
 #endif
+#include "defines.h"
 #include "vt.h"
 
 #if defined(_AIX)
@@ -71,17 +72,6 @@
 #ifndef MAX_COLOR_PAIRS
 # define MAX_COLOR_PAIRS COLOR_PAIRS
 #endif
-
-#if defined(_AIX) && defined(CTRL)
-# undef CTRL
-#endif
-#ifndef CTRL
-# define CTRL(k) ((k) & 0x1F)
-#endif
-
-#define IS_CONTROL(ch)	(!((ch) & 0xFFFFFF60ul))
-#define MIN(x, y)	((x) < (y) ? (x) : (y))
-#define LENGTH(arr)	(sizeof(arr) / sizeof((arr)[0]))
 
 static bool is_utf8, has_default_colors;
 static short int color_pairs_reserved, color_pairs_max, color_pair_current;
@@ -1006,7 +996,7 @@ static void interpret_csi(Vt *t)
 		if (IS_CONTROL(*p)) {
 			process_nonprinting(t, *p);
 		} else if (*p == ';') {
-			if (param_count >= LENGTH(csiparam))
+			if (param_count >= countof(csiparam))
 				return; /* too long! */
 			csiparam[param_count++] = 0;
 		} else if (isdigit((unsigned char)*p)) {

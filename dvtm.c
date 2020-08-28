@@ -37,6 +37,7 @@
 #if defined(__CYGWIN__) || defined(__sun)
 # include <termios.h>
 #endif
+#include "defines.h"
 #include "vt.h"
 
 #ifdef PDCURSES
@@ -101,15 +102,6 @@ typedef struct {
 	Color *color;
 } ColorRule;
 
-#define ALT(k) ((k) + (161 - 'a'))
-#if defined(CTRL) && defined(_AIX)
-# undef CTRL
-#endif
-#ifndef CTRL
-# define CTRL(k) ((k) & 0x1F)
-#endif
-#define CTRL_ALT(k) ((k) + (129 - 'a'))
-
 #define MAX_ARGS 8
 
 typedef struct {
@@ -167,10 +159,7 @@ typedef struct {
 	bool color;
 } Editor;
 
-#define LENGTH(arr) (sizeof(arr) / sizeof((arr)[0]))
-#define MAX(x, y) ((x) > (y) ? (x) : (y))
-#define MIN(x, y) ((x) < (y) ? (x) : (y))
-#define TAGMASK ((1 << LENGTH(tags)) - 1)
+#define TAGMASK ((1 << countof(tags)) - 1)
 
 #ifdef NDEBUG
 # define debug(format, args...)
@@ -352,7 +341,7 @@ static void drawbar(void)
 	attrset(BAR_ATTR);
 	move(bar.y, 0);
 
-	for (unsigned int i = 0; i < LENGTH(tags); i++) {
+	for (unsigned int i = 0; i < countof(tags); i++) {
 		if (tagset[seltags] & (1u << i))
 			attrset(TAG_SEL);
 		else if (urgent & (1u << i))
@@ -626,7 +615,7 @@ static void applycolorrules(Client *c)
 	short int fg = r->color->fg, bg = r->color->bg;
 	attr_t attrs = r->attrs;
 
-	for (unsigned int i = 1; i < LENGTH(colorrules); i++) {
+	for (unsigned int i = 1; i < countof(colorrules); i++) {
 		r = &colorrules[i];
 		if (strstr(c->title, r->title)) {
 			attrs = r->attrs;
@@ -794,7 +783,7 @@ static void resize_screen(void)
 
 static KeyBinding *keybinding(KeyCombo keys, unsigned int keycount)
 {
-	for (unsigned int b = 0; b < LENGTH(bindings); b++) {
+	for (unsigned int b = 0; b < countof(bindings); b++) {
 		for (unsigned int k = 0; k < keycount; k++) {
 			if (keys[k] != bindings[b].keys[k])
 				break;
@@ -810,9 +799,9 @@ static unsigned int bitoftag(const char *tag)
 	unsigned int i;
 	if (!tag)
 		return ~0u;
-	for (i = 0; (i < LENGTH(tags)) && strcmp(tags[i], tag); i++)
+	for (i = 0; (i < countof(tags)) && strcmp(tags[i], tag); i++)
 		;
-	return (i < LENGTH(tags)) ? (1u << i) : 0;
+	return (i < countof(tags)) ? (1u << i) : 0;
 }
 
 static void tagschanged()
@@ -944,7 +933,7 @@ static void mouse_setup(void)
 
 	if (mouse_events_enabled) {
 		mask = BUTTON1_CLICKED | BUTTON2_CLICKED;
-		for (unsigned int i = 0; i < LENGTH(buttons); i++)
+		for (unsigned int i = 0; i < countof(buttons); i++)
 			mask |= buttons[i].mask;
 	}
 	mousemask(mask, NULL);
@@ -995,8 +984,8 @@ static void setup(void)
 	mouse_setup();
 	raw();
 	vt_init();
-	vt_keytable_set(keytable, LENGTH(keytable));
-	for (unsigned int i = 0; i < LENGTH(colors); i++) {
+	vt_keytable_set(keytable, countof(keytable));
+	for (unsigned int i = 0; i < countof(colors); i++) {
 		if (COLORS == 256) {
 			if (colors[i].fg256)
 				colors[i].fg = colors[i].fg256;
@@ -1008,13 +997,13 @@ static void setup(void)
 	resize_screen();
 
 	int *pipes[] = { &sigwinch_pipe[PIPE_READ], &sigchld_pipe[PIPE_READ] };
-	for (unsigned int i = 0; i < LENGTH(pipes); i++) {
+	for (unsigned int i = 0; i < countof(pipes); i++) {
 		int r = pipe(pipes[i]);
 		if (r < 0) {
 			perror("pipe()");
 			quit(NULL);
 		}
-		for (unsigned int j = 0; j < LENGTH(pipes); j++) {
+		for (unsigned int j = 0; j < countof(pipes); j++) {
 			if (!set_blocking(pipes[i][j], false)) {
 				perror("fcntl()");
 				quit(NULL);
@@ -1062,7 +1051,7 @@ static void destroy(Client *c)
 	wnoutrefresh(c->window);
 	vt_destroy(c->term);
 	delwin(c->window);
-	if (!clients && LENGTH(actions)) {
+	if (!clients && countof(actions)) {
 		if (!strcmp(c->cmd, shell))
 			quit(NULL);
 		else
@@ -1416,13 +1405,13 @@ static void setlayout(const char *args[])
 	unsigned int i;
 
 	if (!args || !args[0]) {
-		if (++layout == &layouts[LENGTH(layouts)])
+		if (++layout == &layouts[countof(layouts)])
 			layout = &layouts[0];
 	} else {
-		for (i = 0; i < LENGTH(layouts); i++)
+		for (i = 0; i < countof(layouts); i++)
 			if (!strcmp(args[0], layouts[i].symbol))
 				break;
-		if (i == LENGTH(layouts))
+		if (i == countof(layouts))
 			return;
 		layout = &layouts[i];
 	}
@@ -1473,7 +1462,7 @@ static void setmfact(const char *args[])
 
 static void startup(const char *args[])
 {
-	for (unsigned int i = 0; i < LENGTH(actions); i++)
+	for (unsigned int i = 0; i < countof(actions); i++)
 		actions[i].cmd(actions[i].args);
 }
 
@@ -1605,7 +1594,7 @@ static void mouse_zoom(const char *args[])
 
 static Cmd *get_cmd_by_name(const char *name)
 {
-	for (unsigned int i = 0; i < LENGTH(commands); i++) {
+	for (unsigned int i = 0; i < countof(commands); i++) {
 		if (!strcmp(name, commands[i].name))
 			return &commands[i];
 	}
@@ -1729,7 +1718,7 @@ static void handle_mouse(void)
 	vt_mouse(msel->term, event.x - msel->x, event.y - msel->y,
 		 event.bstate);
 
-	for (i = 0; i < LENGTH(buttons); i++) {
+	for (i = 0; i < countof(buttons); i++) {
 		if (event.bstate & buttons[i].mask)
 			buttons[i].action.cmd(buttons[i].action.args);
 	}
@@ -1859,7 +1848,7 @@ static bool parse_args(int argc, char *argv[])
 			char *mod = argv[++arg];
 			if (mod[0] == '^' && mod[1])
 				*mod = CTRL(mod[1]);
-			for (unsigned int b = 0; b < LENGTH(bindings); b++)
+			for (unsigned int b = 0; b < countof(bindings); b++)
 				if (bindings[b].keys[0] == MOD)
 					bindings[b].keys[0] = *mod;
 			break;
