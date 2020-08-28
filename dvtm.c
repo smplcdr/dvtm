@@ -53,7 +53,7 @@ typedef struct {
 	int history;
 	int w;
 	int h;
-	volatile sig_atomic_t need_resize;
+	bool need_resize:1;
 } Screen;
 
 typedef struct {
@@ -77,9 +77,9 @@ struct Client {
 	unsigned short int y;
 	unsigned short int w;
 	unsigned short int h;
-	bool has_title_line : 1;
-	bool minimized : 1;
-	bool urgent : 1;
+	bool has_title_line:1;
+	bool minimized:1;
+	bool urgent:1;
 	volatile sig_atomic_t died;
 	Client *next;
 	Client *prev;
@@ -103,10 +103,10 @@ typedef struct {
 
 #define ALT(k) ((k) + (161 - 'a'))
 #if defined(CTRL) && defined(_AIX)
-#undef CTRL
+# undef CTRL
 #endif
 #ifndef CTRL
-#define CTRL(k) ((k)&0x1F)
+# define CTRL(k) ((k) & 0x1F)
 #endif
 #define CTRL_ALT(k) ((k) + (129 - 'a'))
 
@@ -173,9 +173,9 @@ typedef struct {
 #define TAGMASK ((1 << LENGTH(tags)) - 1)
 
 #ifdef NDEBUG
-#define debug(format, args...)
+# define debug(format, args...)
 #else
-#define debug eprint
+# define debug eprint
 #endif
 
 /* commands for use by keybindings */
@@ -255,6 +255,10 @@ static const char *shell = NULL;
 static Register copyreg;
 static volatile sig_atomic_t running = true;
 static bool runinall = false;
+static int sigwinch_pipe[] = { -1, -1 };
+static int sigchld_pipe[] = { -1, -1 };
+
+enum { PIPE_READ, PIPE_WRITE };
 
 static void eprint(const char *errstr, ...)
 {
@@ -273,7 +277,7 @@ static void error(const char *errstr, ...)
 	exit(EXIT_FAILURE);
 }
 
-static bool isarrange(void (*func)())
+static bool isarrange(void (*func)(void))
 {
 	return func == layout->arrange;
 }
@@ -717,6 +721,11 @@ static Client *get_client_by_coord(int x, int y)
 
 static void sigchld_handler(int sig)
 {
+	write(sigchld_pipe[PIPE_WRITE], "\0", 1);
+}
+
+static void handle_sigchld(void)
+{
 	int errsv = errno;
 	int status;
 	pid_t pid;
@@ -749,6 +758,11 @@ static void sigchld_handler(int sig)
 }
 
 static void sigwinch_handler(int sig)
+{
+	write(sigwinch_pipe[PIPE_WRITE], "\0", 1);
+}
+
+static void handle_sigwinch(void)
 {
 	screen.need_resize = true;
 }
@@ -960,6 +974,15 @@ static const char *getshell(void)
 	return "/bin/sh";
 }
 
+static bool set_blocking(int fd, bool blocking)
+{
+	int flags = fcntl(fd, F_GETFL, 0);
+	if (flags < 0)
+		return false;
+	flags = (blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK));
+	return fcntl(fd, F_SETFL, flags) == 0;
+}
+
 static void setup(void)
 {
 	shell = getshell();
@@ -983,16 +1006,37 @@ static void setup(void)
 		colors[i].pair = vt_color_reserve(colors[i].fg, colors[i].bg);
 	}
 	resize_screen();
+
+	int *pipes[] = { &sigwinch_pipe[PIPE_READ], &sigchld_pipe[PIPE_READ] };
+	for (unsigned int i = 0; i < LENGTH(pipes); i++) {
+		int r = pipe(pipes[i]);
+		if (r < 0) {
+			perror("pipe()");
+			quit(NULL);
+		}
+		for (unsigned int j = 0; j < LENGTH(pipes); j++) {
+			if (!set_blocking(pipes[i][j], false)) {
+				perror("fcntl()");
+				quit(NULL);
+			}
+		}
+	}
+
 	struct sigaction sa;
 	memset(&sa, 0, sizeof sa);
+
 	sa.sa_flags = 0;
 	sigemptyset(&sa.sa_mask);
+
 	sa.sa_handler = sigwinch_handler;
 	sigaction(SIGWINCH, &sa, NULL);
+
 	sa.sa_handler = sigchld_handler;
 	sigaction(SIGCHLD, &sa, NULL);
+
 	sa.sa_handler = sigterm_handler;
 	sigaction(SIGTERM, &sa, NULL);
+
 	sa.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &sa, NULL);
 }
@@ -1099,8 +1143,8 @@ static void create(const char *args[])
 	c->title[sizeof(c->title) - 1] = '\0';
 
 	if (args && args[2])
-		cwd = !strcmp(args[2], "$CWD") ? getcwd_by_pid(sel) :
-						 (char *)args[2];
+		cwd = !strcmp(args[2], "$CWD") ? getcwd_by_pid(sel)
+					       : (char *)args[2];
 	c->pid = vt_forkpty(c->term, shell, pargs, cwd, env, NULL, NULL);
 	if (args && args[2] && !strcmp(args[2], "$CWD"))
 		free(cwd);
@@ -1858,19 +1902,12 @@ int main(int argc, char *argv[])
 	KeyCombo keys;
 	unsigned int key_index = 0;
 	memset(keys, 0, sizeof(keys));
-	sigset_t emptyset, blockset;
 
 	setenv("DVTM", VERSION, 1);
 	if (!parse_args(argc, argv)) {
 		setup();
 		startup(NULL);
 	}
-
-	sigemptyset(&emptyset);
-	sigemptyset(&blockset);
-	sigaddset(&blockset, SIGWINCH);
-	sigaddset(&blockset, SIGCHLD);
-	sigprocmask(SIG_BLOCK, &blockset, NULL);
 
 	while (running) {
 		int r, nfds = 0;
@@ -1884,9 +1921,15 @@ int main(int argc, char *argv[])
 		FD_ZERO(&rd);
 		FD_SET(STDIN_FILENO, &rd);
 
+		FD_SET(sigwinch_pipe[PIPE_READ], &rd);
+		nfds = MAX(nfds, sigwinch_pipe[PIPE_READ]);
+
+		FD_SET(sigchld_pipe[PIPE_READ], &rd);
+		nfds = MAX(nfds, sigchld_pipe[PIPE_READ]);
+
 		if (cmdfifo.fd >= 0) {
 			FD_SET(cmdfifo.fd, &rd);
-			nfds = cmdfifo.fd;
+			nfds = MAX(nfds, cmdfifo.fd);
 		}
 
 		if (bar.fd >= 0) {
@@ -1903,15 +1946,15 @@ int main(int argc, char *argv[])
 				c = t;
 				continue;
 			}
-			int pty = c->editor ? vt_pty_get(c->editor) :
-					      vt_pty_get(c->app);
+			int pty = c->editor ? vt_pty_get(c->editor)
+					    : vt_pty_get(c->app);
 			FD_SET(pty, &rd);
 			nfds = MAX(nfds, pty);
 			c = c->next;
 		}
 
 		doupdate();
-		r = pselect(nfds + 1, &rd, NULL, NULL, NULL, &emptyset);
+		r = select(nfds + 1, &rd, NULL, NULL, NULL);
 
 		if (r < 0) {
 			if (errno == EINTR)
@@ -1928,11 +1971,10 @@ int main(int argc, char *argv[])
 				if (code == KEY_MOUSE) {
 					key_index = 0;
 					handle_mouse();
-				} else if ((binding = keybinding(keys,
-								 key_index))) {
+				} else if ((binding = keybinding(keys, key_index))) {
 					unsigned int key_length = MAX_KEYS;
-					while (key_length > 1 &&
-					       !binding->keys[key_length - 1])
+					while (key_length > 1
+					    && !binding->keys[key_length - 1])
 						key_length--;
 					if (key_index == key_length) {
 						binding->action.cmd(
@@ -1948,6 +1990,19 @@ int main(int argc, char *argv[])
 			}
 			if (r == 1) /* no data available on pty's */
 				continue;
+		}
+
+		if (FD_ISSET(sigwinch_pipe[PIPE_READ], &rd)) {
+			char buf[1];
+			while (read(sigwinch_pipe[PIPE_READ], &buf, sizeof buf) > 0)
+				;
+			handle_sigwinch();
+		}
+		if (FD_ISSET(sigchld_pipe[PIPE_READ], &rd)) {
+			char buf[1];
+			while (read(sigchld_pipe[PIPE_READ], &buf, sizeof buf) > 0)
+				;
+			handle_sigchld();
 		}
 
 		if (cmdfifo.fd >= 0 && FD_ISSET(cmdfifo.fd, &rd))
