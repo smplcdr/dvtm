@@ -644,7 +644,7 @@ static void term_urgent_handler(Vt *term)
 {
 	Client *c = (Client *)vt_data_get(term);
 	c->urgent = true;
-	printf("\a");
+	putc('\a', stdout);
 	fflush(stdout);
 	drawbar();
 	if (!isarrange(fullscreen) && sel != c && isvisible(c))
@@ -748,6 +748,7 @@ static void handle_sigchld(void)
 
 static void sigwinch_handler(int sig)
 {
+	(void)sig;
 	write(sigwinch_pipe[PIPE_WRITE], "\0", 1);
 }
 
@@ -758,6 +759,7 @@ static void handle_sigwinch(void)
 
 static void sigterm_handler(int sig)
 {
+	(void)sig;
 	running = false;
 }
 
@@ -799,7 +801,7 @@ static unsigned int bitoftag(const char *tag)
 	unsigned int i;
 	if (!tag)
 		return ~0u;
-	for (i = 0; (i < countof(tags)) && strcmp(tags[i], tag); i++)
+	for (i = 0; i < countof(tags) && strcmp(tags[i], tag); i++)
 		;
 	return (i < countof(tags)) ? (1u << i) : 0;
 }
@@ -918,6 +920,7 @@ static void keypress(int code)
 				vt_write(c->term, buf, len);
 			else
 				vt_keypress(c->term, code);
+
 			if (key >= 0)
 				vt_keypress(c->term, key);
 		}
@@ -942,7 +945,7 @@ static void mouse_setup(void)
 
 static bool checkshell(const char *shell)
 {
-	if (shell == NULL || *shell == '\0' || *shell != '/')
+	if (!shell || !*shell || *shell != '/')
 		return false;
 	if (!strcmp(strrchr(shell, '/') + 1, dvtm_name))
 		return false;
@@ -974,6 +977,23 @@ static bool set_blocking(int fd, bool blocking)
 
 static void setup(void)
 {
+	int *pipes[] = { &sigwinch_pipe[PIPE_READ], &sigchld_pipe[PIPE_READ] };
+
+	for (unsigned int i = 0; i < countof(pipes); i++) {
+		int r = pipe(pipes[i]);
+
+		if (r < 0) {
+			perror("pipe()");
+			exit(EXIT_FAILURE);
+		}
+		for (unsigned int j = 0; j < countof(pipes); j++) {
+			if (!set_blocking(pipes[i][j], false)) {
+				perror("fcntl()");
+				exit(EXIT_FAILURE);
+			}
+		}
+	}
+
 	shell = getshell();
 	setlocale(LC_CTYPE, "");
 	initscr();
@@ -995,21 +1015,6 @@ static void setup(void)
 		colors[i].pair = vt_color_reserve(colors[i].fg, colors[i].bg);
 	}
 	resize_screen();
-
-	int *pipes[] = { &sigwinch_pipe[PIPE_READ], &sigchld_pipe[PIPE_READ] };
-	for (unsigned int i = 0; i < countof(pipes); i++) {
-		int r = pipe(pipes[i]);
-		if (r < 0) {
-			perror("pipe()");
-			quit(NULL);
-		}
-		for (unsigned int j = 0; j < countof(pipes); j++) {
-			if (!set_blocking(pipes[i][j], false)) {
-				perror("fcntl()");
-				quit(NULL);
-			}
-		}
-	}
 
 	struct sigaction sa;
 	memset(&sa, 0, sizeof sa);
@@ -1154,7 +1159,7 @@ static void copymode(const char *args[])
 	if (!args || !args[0] || !sel || sel->editor)
 		return;
 
-	bool colored = strstr(args[0], "pager") != NULL;
+	bool colored = strstr(args[0], "pager");
 
 	if (!(sel->editor = vt_create(sel->h - sel->has_title_line, sel->w, 0)))
 		return;
@@ -1454,7 +1459,7 @@ static void setmfact(const char *args[])
 	if (isarrange(fullscreen) || isarrange(grid))
 		return;
 	/* arg handling, manipulate mfact */
-	if (args[0]) {
+	if (!args[0]) {
 		screen.mfact = MFACT;
 	} else if (sscanf(args[0], "%f", &delta) == 1) {
 		if (args[0][0] == '+' || args[0][0] == '-')
@@ -1632,12 +1637,13 @@ static void handle_cmdfifo(void)
 			;
 		if ((c = *p))
 			*p++ = '\0';
-		if (*s && (cmd = get_cmd_by_name(s)) != NULL) {
+		if (*s && (cmd = get_cmd_by_name(s))) {
 			bool quote = false;
 			int argc = 0;
 			const char *args[MAX_ARGS], *arg;
 			memset(args, 0, sizeof(args));
-			/* if arguments were specified in config.h ignore the one given via
+			/*
+			 * if arguments were specified in config.h ignore the one given via
 			 * the named pipe and thus skip everything until we find a new line
 			 */
 			if (cmd->action.args[0] || c == '\n') {

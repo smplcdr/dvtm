@@ -1148,7 +1148,7 @@ static void interpret_osc(Vt *t)
 	 * Note that BEL or ESC \\ have already been replaced with NUL.
 	 */
 	char *data = NULL;
-	int command = strtoul(t->ebuf + 1, &data, 10);
+	int command = (int)strtoul(t->ebuf + 1, &data, 10);
 	if (data && *data == ';') {
 		switch (command) {
 		case 0: /* icon name and window title */
