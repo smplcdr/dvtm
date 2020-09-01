@@ -11,29 +11,28 @@
  * See LICENSE for details.
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <wchar.h>
-#include <limits.h>
+#include <curses.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <libgen.h>
+#include <limits.h>
+#include <locale.h>
+#include <pwd.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <fcntl.h>
-#include <curses.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <signal.h>
-#include <locale.h>
-#include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
-#include <stdbool.h>
-#include <errno.h>
-#include <pwd.h>
+#include <wchar.h>
 #if defined(__CYGWIN__) || defined(__sun)
 # include <termios.h>
 #endif
@@ -364,8 +363,8 @@ static void drawbar(void)
 	addch(BAR_BEGIN);
 	attrset(BAR_ATTR);
 
-	wchar_t wbuf[sizeof bar.text];
-	size_t numchars = mbstowcs(wbuf, bar.text, sizeof bar.text);
+	wchar_t wbuf[sizeof(bar.text)];
+	size_t numchars = mbstowcs(wbuf, bar.text, sizeof(bar.text));
 
 	if (numchars != (size_t)-1 &&
 	    (width = wcswidth(wbuf, maxwidth)) != -1) {
@@ -803,7 +802,7 @@ static unsigned int bitoftag(const char *tag)
 		return ~0u;
 	for (i = 0; i < countof(tags) && strcmp(tags[i], tag); i++)
 		;
-	return (i < countof(tags)) ? (1u << i) : 0;
+	return i < countof(tags) ? 1u << i : 0;
 }
 
 static void tagschanged()
@@ -1017,7 +1016,7 @@ static void setup(void)
 	resize_screen();
 
 	struct sigaction sa;
-	memset(&sa, 0, sizeof sa);
+	memset(&sa, 0, sizeof(sa));
 
 	sa.sa_flags = 0;
 	sigemptyset(&sa.sa_mask);
@@ -1085,10 +1084,10 @@ static void cleanup(void)
 
 static char *getcwd_by_pid(Client *c)
 {
-	if (!c)
+	if (!c || c->pid < 0)
 		return NULL;
-	char buf[32];
-	snprintf(buf, sizeof buf, "/proc/%d/cwd", c->pid);
+	char buf[sizeof("/proc//cwd") + sizeof("2147483647") - 1];
+	snprintf(buf, sizeof(buf), "/proc/%d/cwd", c->pid);
 	return realpath(buf, NULL);
 }
 
@@ -1108,7 +1107,7 @@ static void create(const char *args[])
 		return;
 	c->tags = tagset[seltags];
 	c->id = ++cmdfifo.id;
-	snprintf(buf, sizeof buf, "%d", c->id);
+	snprintf(buf, sizeof(buf), "%d", c->id);
 
 	if (!(c->window = newwin(wah, waw, way, wax))) {
 		free(c);
@@ -1621,7 +1620,7 @@ static void handle_cmdfifo(void)
 	char *p, *s, cmdbuf[512], c;
 	Cmd *cmd;
 
-	r = read(cmdfifo.fd, cmdbuf, sizeof cmdbuf - 1);
+	r = read(cmdfifo.fd, cmdbuf, sizeof(cmdbuf) - 1);
 	if (r <= 0) {
 		cmdfifo.fd = -1;
 		return;
@@ -1744,11 +1743,11 @@ static void handle_mouse(void)
 
 static void handle_statusbar(void)
 {
-	int r = read(bar.fd, bar.text, sizeof bar.text - 1);
+	int r = read(bar.fd, bar.text, sizeof(bar.text) - 1);
 	if (r <= 0) {
 		if (r < 0) {
-			strncpy(bar.text, strerror(errno), sizeof bar.text - 1);
-			bar.text[sizeof bar.text - 1] = '\0';
+			strncpy(bar.text, strerror(errno), sizeof(bar.text) - 1);
+			bar.text[sizeof(bar.text) - 1] = '\0';
 		}
 		bar.fd = -1;
 	} else {
@@ -1998,13 +1997,13 @@ int main(int argc, char *argv[])
 
 		if (FD_ISSET(sigwinch_pipe[PIPE_READ], &rd)) {
 			char buf[1];
-			while (read(sigwinch_pipe[PIPE_READ], &buf, sizeof buf) > 0)
+			while (read(sigwinch_pipe[PIPE_READ], &buf, sizeof(buf)) > 0)
 				;
 			handle_sigwinch();
 		}
 		if (FD_ISSET(sigchld_pipe[PIPE_READ], &rd)) {
 			char buf[1];
-			while (read(sigchld_pipe[PIPE_READ], &buf, sizeof buf) > 0)
+			while (read(sigchld_pipe[PIPE_READ], &buf, sizeof(buf)) > 0)
 				;
 			handle_sigchld();
 		}

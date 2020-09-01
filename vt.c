@@ -16,22 +16,21 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <stdlib.h>
-#include <stdint.h>
-#include <unistd.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <langinfo.h>
 #include <limits.h>
 #include <signal.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stddef.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <termios.h>
+#include <unistd.h>
 #include <wchar.h>
 #if defined(__linux__) || defined(__CYGWIN__)
 # include <pty.h>
@@ -1384,7 +1383,7 @@ static void put_wc(Vt *t, wchar_t wc)
 			Cell *src = b->curs_row->cells + b->curs_col;
 			Cell *dest = src + width;
 			size_t len = b->cols - b->curs_col - width;
-			memmove(dest, src, len * sizeof *dest);
+			memmove(dest, src, len * sizeof(*dest));
 		}
 
 		b->curs_row->cells[b->curs_col] = blank_cell;
@@ -1400,7 +1399,7 @@ int vt_process(Vt *t)
 	int res;
 	unsigned int pos = 0;
 	mbstate_t ps;
-	memset(&ps, 0, sizeof ps);
+	memset(&ps, 0, sizeof(ps));
 
 	if (t->pty < 0) {
 		errno = EINVAL;
@@ -1688,7 +1687,7 @@ static void send_curs(Vt *t)
 {
 	Buffer *b = t->buffer;
 	char keyseq[16];
-	snprintf(keyseq, sizeof keyseq, "\e[%d;%dR",
+	snprintf(keyseq, sizeof(keyseq), "\e[%d;%dR",
 		 (int)(b->curs_row - b->lines), b->curs_col);
 	vt_write(t, keyseq, strlen(keyseq));
 }
@@ -1706,7 +1705,7 @@ void vt_keypress(Vt *t, int keycode)
 			char keyseq[3] = { '\e',
 					   (t->curskeymode ? 'O' : '['),
 					   keytable[keycode][0] };
-			vt_write(t, keyseq, sizeof keyseq);
+			vt_write(t, keyseq, sizeof(keyseq));
 			break;
 		}
 		default:
@@ -1751,13 +1750,13 @@ void vt_mouse(Vt *t, int x, int y, mmask_t mask)
 	seq[4] = 32 + x;
 	seq[5] = 32 + y;
 
-	vt_write(t, seq, sizeof seq);
+	vt_write(t, seq, sizeof(seq));
 
 	if (mask & (BUTTON1_CLICKED | BUTTON2_CLICKED | BUTTON3_CLICKED)) {
 		/* send a button release event */
 		button = 3;
 		seq[3] = 32 + button + state;
-		vt_write(t, seq, sizeof seq);
+		vt_write(t, seq, sizeof(seq));
 	}
 #endif /* NCURSES_MOUSE_VERSION */
 }
@@ -1857,7 +1856,7 @@ void vt_init(void)
 	char *term = getenv("DVTM_TERM");
 	if (!term)
 		term = "dvtm";
-	snprintf(vt_term, sizeof vt_term, "%s%s", term,
+	snprintf(vt_term, sizeof(vt_term), "%s%s", term,
 		 COLORS >= 256 ? "-256color" : "");
 }
 
