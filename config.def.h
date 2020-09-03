@@ -86,8 +86,8 @@ static Layout layouts[] = {
 
 /* you can at most specifiy MAX_ARGS (3) number of arguments */
 static KeyBinding bindings[] = {
-	{ { MOD, 'c',          }, { create,         { NULL }                    } },
-	{ { MOD, 'C',          }, { create,         { NULL, NULL, "$CWD" }      } },
+	{ { MOD, 'c',          }, { create,         { NULL, NULL, "$CWD" }      } },
+	{ { MOD, 'C',          }, { create,         { NULL, NULL, NULL }        } },
 	{ { MOD, 'x', 'x',     }, { killclient,     { NULL }                    } },
 	{ { MOD, 'j',          }, { focusnext,      { NULL }                    } },
 	{ { MOD, 'J',          }, { focusnextnm,    { NULL }                    } },
@@ -125,12 +125,12 @@ static KeyBinding bindings[] = {
 	{ { MOD, 'e',          }, { copymode,       { NULL }                    } },
 	{ { MOD, '/',          }, { copymode,       { "/" }                     } },
 	{ { MOD, 'p',          }, { paste,          { NULL }                    } },
-	{ { MOD, KEY_PPAGE,    }, { scrollback,     { "-2" }                     } },
-	{ { MOD, KEY_NPAGE,    }, { scrollback,     { "+2" }                     } },
+	{ { MOD, KEY_PPAGE,    }, { scrollback,     { "-2" }                    } },
+	{ { MOD, KEY_NPAGE,    }, { scrollback,     { "+2" }                    } },
 	{ { MOD, '?',          }, { create,         { "man dvtm", "dvtm help" } } },
 	{ { MOD, MOD,          }, { send,           { (const char []){MOD, 0} } } },
-	{ { KEY_SPREVIOUS,     }, { scrollback,     { "-2" }                     } },
-	{ { KEY_SNEXT,         }, { scrollback,     { "+2"  }                    } },
+	{ { KEY_SPREVIOUS,     }, { scrollback,     { "-2" }                    } },
+	{ { KEY_SNEXT,         }, { scrollback,     { "+2" }                    } },
 	{ { MOD, '0',          }, { view,           { NULL }                    } },
 	{ { MOD, KEY_F(1),     }, { view,           { tags[0] }                 } },
 	{ { MOD, KEY_F(2),     }, { view,           { tags[1] }                 } },
