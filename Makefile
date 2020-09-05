@@ -6,7 +6,7 @@ MANUALS = dvtm.1 dvtm-editor.1 dvtm-pager.1
 
 VERSION = $(shell git describe --always --dirty 2>/dev/null || echo "0.15-git")
 CFLAGS += -DVERSION=\"${VERSION}\"
-DEBUG_CFLAGS = ${CFLAGS} -UNDEBUG -O0 -g -ggdb -Wall -Wextra -Wno-unused-parameter
+DEBUG_CFLAGS = ${CFLAGS} -UNDEBUG -O0 -g -ggdb -rdynamic -Wall -Wextra -Wno-unused-parameter
 
 all: dvtm dvtm-editor
 

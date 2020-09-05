@@ -1,4 +1,6 @@
 /*
+ * © 2020 Sergey Sushilin <sushilinsergey at gmail dot com>
+ *
  * The initial "port" of dwm to curses was done by
  *
  * © 2007-2016 Marc André Tanner <mat at brain-dump dot org>
@@ -36,6 +38,20 @@
 #if defined(__CYGWIN__) || defined(__sun)
 # include <termios.h>
 #endif
+#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 1)
+# include <execinfo.h>
+
+/* The filename, backtrace_symbols_fd() will write to.  */
+# define DVTM_BACKTRACE_FILENAME "dvtm.backtrace"
+
+/* Define 'static' as empty to turn all static functions
+ * into global functions.  It will allow backtrace()
+ * to get theirs names.
+ */
+# define static
+
+# define DVTM_USES_SIGSEGV_HANDLER 1
+#endif
 #include "defines.h"
 #include "vt.h"
 
@@ -69,7 +85,7 @@ struct Client {
 	int editor_fds[2];
 	volatile sig_atomic_t editor_died;
 	const char *cmd;
-	char title[255];
+	char title[256];
 	unsigned int order;
 	pid_t pid;
 	unsigned short int id;
@@ -782,6 +798,122 @@ static void resize_screen(void)
 	arrange();
 }
 
+#if DVTM_USES_SIGSEGV_HANDLER
+/* When caught SIGSEGV, program in unstable state, so use raw syscall
+ * incstead of printf().  */
+# define INIT_BUFFERED_WRITE() \
+	char __write_buffer[PATH_MAX + FILENAME_MAX + 1024]; \
+	size_t __write_buffer_length = 0; \
+	((void)0)
+# define WRITEBUF(string) \
+	do { \
+		size_t __additional_length = (__builtin_constant_p(string) \
+							? sizeof(string) - 1 \
+							: strlen(string)); \
+		if (__write_buffer_length + __additional_length \
+		    >= sizeof(__write_buffer)) { \
+			WRITEFD(); /* Write out now to do not overflow.  */ \
+		} \
+		memcpy(&__write_buffer[__write_buffer_length], \
+		       (string), \
+		       __additional_length); \
+		__write_buffer_length += __additional_length; \
+	} while (0)
+# define WRITEFD() \
+	do { \
+		while (__write_buffer_length != 0) { \
+			ssize_t __ret; \
+			do { \
+				__ret = write(STDERR_FILENO, \
+					      __write_buffer, \
+					      __write_buffer_length); \
+			} while (__ret < 0 && errno == EINTR); \
+			if (__ret >= 0) \
+				__write_buffer_length -= __ret; \
+			else \
+				break; \
+		} \
+	} while (0)
+
+static const char *sigstr(int sig)
+{
+	switch (sig) {
+	case SIGSEGV:
+		return "Segmentation fault.\n";
+	case SIGILL:
+		return "Illegal instruction.\n";
+	case SIGFPE:
+		return "Floating point exception.\n";
+	case SIGABRT:
+		return "Aborted.\n";
+# ifdef SIGSTKFLT
+	case SIGSTKFLT:
+		return "Stack fault.\n";
+# endif
+# ifdef SIGBUS
+	case SIGBUS:
+		return "Bus error.\n";
+# endif
+	default: /* (Must) never happen.  */
+		return "Unknown signal.\n";
+	}
+}
+
+static void sigsegv_handler(int sig)
+{
+	vt_shutdown();
+	endwin();
+
+	void *backtrace_buffer[128]; /* Must be enough.  */
+	char path[PATH_MAX + FILENAME_MAX + 1];
+
+	char *tmpdir = getenv("TMPDIR");
+	if (tmpdir == NULL)
+		tmpdir = "/tmp";
+
+	strcpy(path, tmpdir);
+	strcat(path, "/"DVTM_BACKTRACE_FILENAME);
+
+	INIT_BUFFERED_WRITE();
+
+	/* If fail -- try in tmpdir.  */
+	int fd = creat(path, 0666);
+	if (fd < 0) {
+		/* Life is hard...  */
+		WRITEBUF("creat(\"");
+		WRITEBUF(path);
+		WRITEBUF("\", 0666): ");
+		WRITEBUF(strerror(errno));
+		WRITEBUF("\n");
+		WRITEFD();
+
+		/* Print coredump right to user.  */
+		fd = STDERR_FILENO;
+	}
+
+	int n_ptrs = backtrace(backtrace_buffer, countof(backtrace_buffer));
+	backtrace_symbols_fd(backtrace_buffer, n_ptrs, fd);
+
+	if (fd != STDERR_FILENO) {
+		close(fd); /* Do not care if it is fail.  */
+
+		/* Report where coredump have been placed.  */
+		WRITEBUF(sigstr(sig));
+		WRITEBUF("Write coredump in ");
+		WRITEBUF(path);
+		WRITEBUF("\n");
+		WRITEFD();
+	}
+
+	/* Finally -- die.  */
+	exit(EXIT_FAILURE);
+}
+
+# undef WRITEFD
+# undef WRITEBUF
+# undef INIT_BUFFERED_WRITE
+#endif
+
 static KeyBinding *keybinding(KeyCombo keys, unsigned int keycount)
 {
 	for (unsigned int b = 0; b < countof(bindings); b++) {
@@ -1021,6 +1153,22 @@ static void setup(void)
 	sa.sa_flags = 0;
 	sigemptyset(&sa.sa_mask);
 
+#if DVTM_USES_SIGSEGV_HANDLER
+	/* Use SIGSEGV handler for all such signals.  */
+	sa.sa_handler = sigsegv_handler;
+
+	sigaction(SIGSEGV, &sa, NULL);
+	sigaction(SIGILL, &sa, NULL);
+	sigaction(SIGFPE, &sa, NULL);
+	sigaction(SIGABRT, &sa, NULL);
+# ifdef SIGSTKFLT
+	sigaction(SIGSTKFLT, &sa, NULL);
+# endif
+# ifdef SIGBUS
+	sigaction(SIGBUS, &sa, NULL);
+# endif
+#endif
+
 	sa.sa_handler = sigwinch_handler;
 	sigaction(SIGWINCH, &sa, NULL);
 
@@ -1069,16 +1217,19 @@ static void cleanup(void)
 {
 	while (clients)
 		destroy(clients);
+
 	vt_shutdown();
 	endwin();
+
 	free(copyreg.data);
-	if (bar.fd > 0)
+
+	if (bar.fd >= 0)
 		close(bar.fd);
-	if (bar.file)
+	if (bar.file != NULL)
 		unlink(bar.file);
-	if (cmdfifo.fd > 0)
+	if (cmdfifo.fd >= 0)
 		close(cmdfifo.fd);
-	if (cmdfifo.file)
+	if (cmdfifo.file != NULL)
 		unlink(cmdfifo.file);
 }
 
@@ -1372,6 +1523,8 @@ static void paste(const char *args[])
 static void quit(const char *args[])
 {
 	cleanup();
+	/* Need to do not mix in-dvtm-shell's and parent-shell's prompt lines.  */
+	puts("\r");
 	exit(EXIT_SUCCESS);
 }
 
@@ -1823,7 +1976,6 @@ static int open_or_create_fifo(const char *name, const char **name_created)
 
 static void usage(void)
 {
-	cleanup();
 	eprint("usage: dvtm [-v] [-M] [-m mod] [-d delay] [-h lines] [-t title] "
 	       "[-s status-fifo] [-c cmd-fifo] [cmd...]\n");
 	exit(EXIT_FAILURE);
