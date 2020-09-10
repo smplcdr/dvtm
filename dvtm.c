@@ -236,6 +236,10 @@ static char *title;
 
 #include "config.h"
 
+/* global functions */
+static void setup(void);
+static void cleanup(void);
+
 /* global variables */
 static const char *dvtm_name = "dvtm";
 Screen screen = { .mfact = MFACT,
@@ -262,7 +266,7 @@ static bool runinall = false;
 static int sigwinch_pipe[] = { -1, -1 };
 static int sigchld_pipe[] = { -1, -1 };
 
-enum { PIPE_READ, PIPE_WRITE };
+enum { PIPE_READ = 0, PIPE_WRITE = 1 };
 
 static void eprint(const char *errstr, ...)
 {
@@ -382,8 +386,8 @@ static void drawbar(void)
 	wchar_t wbuf[sizeof(bar.text)];
 	size_t numchars = mbstowcs(wbuf, bar.text, sizeof(bar.text));
 
-	if (numchars != (size_t)-1 &&
-	    (width = wcswidth(wbuf, maxwidth)) != -1) {
+	if (numchars != (size_t)-1
+	 && (width = wcswidth(wbuf, maxwidth)) != -1) {
 		int pos;
 		for (pos = 0; pos + width < maxwidth; pos++)
 			addch(' ');
@@ -565,7 +569,7 @@ static void detach(Client *c)
 	if (c->next) {
 		c->next->prev = c->prev;
 		for (d = nextvisible(c->next); d; d = nextvisible(d->next))
-			--d->order;
+			d->order--;
 	}
 	if (c == clients)
 		clients = c->next;
@@ -643,12 +647,12 @@ static void applycolorrules(Client *c)
 	vt_default_colors_set(c->term, attrs, fg, bg);
 }
 
-static void term_title_handler(Vt *term, const char *title)
+static void term_title_handler(Vt *term, const char *handling_title)
 {
 	Client *c = (Client *)vt_data_get(term);
-	if (title)
-		strncpy(c->title, title, sizeof(c->title) - 1);
-	c->title[title ? sizeof(c->title) - 1 : 0] = '\0';
+	if (handling_title)
+		strncpy(c->title, handling_title, sizeof(c->title) - 1);
+	c->title[handling_title ? sizeof(c->title) - 1 : 0] = '\0';
 	settitle(c);
 	if (!isarrange(fullscreen) || sel == c)
 		draw_border(c);
@@ -715,8 +719,8 @@ static Client *get_client_by_coord(int x, int y)
 	for (Client *c = nextvisible(clients); c; c = nextvisible(c->next)) {
 		if (x >= c->x && x < c->x + c->w && y >= c->y &&
 		    y < c->y + c->h) {
-			debug("mouse event, x: %d y: %d client: %d\n", x, y,
-			      c->order);
+			debug("mouse event, x: %d y: %d client: %d\n",
+			      x, y, c->order);
 			return c;
 		}
 	}
@@ -725,6 +729,7 @@ static Client *get_client_by_coord(int x, int y)
 
 static void sigchld_handler(int sig)
 {
+	(void)sig;
 	write(sigchld_pipe[PIPE_WRITE], "\0", 1);
 }
 
@@ -796,6 +801,8 @@ static void resize_screen(void)
 	updatebarpos();
 	clear();
 	arrange();
+
+	screen.need_resize = false;
 }
 
 #if DVTM_USES_SIGSEGV_HANDLER
@@ -834,30 +841,6 @@ static void resize_screen(void)
 				break; \
 		} \
 	} while (0)
-
-static const char *sigstr(int sig)
-{
-	switch (sig) {
-	case SIGSEGV:
-		return "Segmentation fault.\n";
-	case SIGILL:
-		return "Illegal instruction.\n";
-	case SIGFPE:
-		return "Floating point exception.\n";
-	case SIGABRT:
-		return "Aborted.\n";
-# ifdef SIGSTKFLT
-	case SIGSTKFLT:
-		return "Stack fault.\n";
-# endif
-# ifdef SIGBUS
-	case SIGBUS:
-		return "Bus error.\n";
-# endif
-	default: /* (Must) never happen.  */
-		return "Unknown signal.\n";
-	}
-}
 
 static void sigsegv_handler(int sig)
 {
@@ -898,7 +881,34 @@ static void sigsegv_handler(int sig)
 		close(fd); /* Do not care if it is fail.  */
 
 		/* Report where coredump have been placed.  */
-		WRITEBUF(sigstr(sig));
+		switch (sig) {
+		case SIGSEGV:
+			WRITEBUF("Segmentation fault.\n");
+			break;
+		case SIGILL:
+			WRITEBUF("Illegal instruction.\n");
+			break;
+		case SIGFPE:
+			WRITEBUF("Floating point exception.\n");
+			break;
+		case SIGABRT:
+			WRITEBUF("Aborted.\n");
+			break;
+# ifdef SIGSTKFLT
+		case SIGSTKFLT:
+			WRITEBUF("Stack fault.\n");
+			break;
+# endif
+# ifdef SIGBUS
+		case SIGBUS:
+			WRITEBUF("Bus error.\n");
+			break;
+# endif
+		default: /* (Must) never happen.  */
+			WRITEBUF("Unknown signal.\n");
+			break;
+		}
+
 		WRITEBUF("Write coredump in ");
 		WRITEBUF(path);
 		WRITEBUF("\n");
@@ -906,7 +916,7 @@ static void sigsegv_handler(int sig)
 	}
 
 	/* Finally -- die.  */
-	exit(EXIT_FAILURE);
+	_exit(EXIT_FAILURE); /* Do not use exit(3) to do not recall atexit(3) registrated functions again.  */
 }
 
 # undef WRITEFD
@@ -1180,14 +1190,18 @@ static void setup(void)
 
 	sa.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &sa, NULL);
+
+	atexit(cleanup);
 }
 
 static void destroy(Client *c)
 {
 	if (sel == c)
 		focusnextnm(NULL);
+
 	detach(c);
 	detachstack(c);
+
 	if (sel == c) {
 		Client *next = nextvisible(clients);
 		if (next) {
@@ -1197,29 +1211,33 @@ static void destroy(Client *c)
 			sel = NULL;
 		}
 	}
+
 	if (lastsel == c)
 		lastsel = NULL;
+
 	werase(c->window);
 	wnoutrefresh(c->window);
 	vt_destroy(c->term);
 	delwin(c->window);
+
 	if (!clients && countof(actions)) {
 		if (!strcmp(c->cmd, shell))
 			quit(NULL);
 		else
 			create(NULL);
 	}
+
 	free(c);
 	arrange();
 }
 
 static void cleanup(void)
 {
-	while (clients)
-		destroy(clients);
-
 	vt_shutdown();
 	endwin();
+
+	/* Need to do not mix in-dvtm-shell's and parent-shell's prompt lines.  */
+	puts("\r");
 
 	free(copyreg.data);
 
@@ -1231,12 +1249,17 @@ static void cleanup(void)
 		close(cmdfifo.fd);
 	if (cmdfifo.file != NULL)
 		unlink(cmdfifo.file);
+
+	/* Do it at the end, because destroy() calls _exit(3).  */
+	while (clients)
+		destroy(clients);
 }
 
 static char *getcwd_by_pid(Client *c)
 {
 	if (!c || c->pid < 0)
 		return NULL;
+
 	char buf[sizeof("/proc//cwd") + sizeof("2147483647") - 1];
 	snprintf(buf, sizeof(buf), "/proc/%d/cwd", c->pid);
 	return realpath(buf, NULL);
@@ -1244,7 +1267,7 @@ static char *getcwd_by_pid(Client *c)
 
 static void create(const char *args[])
 {
-	const char *pargs[4] = { shell, NULL };
+	const char *pargs[4] = { shell, NULL, NULL, NULL };
 	char buf[8], *cwd = NULL;
 	const char *env[] = { "DVTM_WINDOW_ID", buf, NULL };
 
@@ -1441,6 +1464,7 @@ static void focusprevnm(const char *args[])
 {
 	if (!sel)
 		return;
+
 	Client *c = sel;
 	do {
 		for (c = c->prev; c && !isvisible(c); c = c->prev)
@@ -1465,6 +1489,7 @@ static void focusup(const char *args[])
 {
 	if (!sel)
 		return;
+
 	/* avoid vertical separator, hence +1 in x direction */
 	Client *c = get_client_by_coord(sel->x + 1, sel->y - 1);
 	if (c)
@@ -1477,6 +1502,7 @@ static void focusdown(const char *args[])
 {
 	if (!sel)
 		return;
+
 	Client *c = get_client_by_coord(sel->x, sel->y + sel->h);
 	if (c)
 		focus(c);
@@ -1488,6 +1514,7 @@ static void focusleft(const char *args[])
 {
 	if (!sel)
 		return;
+
 	Client *c = get_client_by_coord(sel->x - 2, sel->y);
 	if (c)
 		focus(c);
@@ -1499,6 +1526,7 @@ static void focusright(const char *args[])
 {
 	if (!sel)
 		return;
+
 	Client *c = get_client_by_coord(sel->x + sel->w + 1, sel->y);
 	if (c)
 		focus(c);
@@ -1510,6 +1538,7 @@ static void killclient(const char *args[])
 {
 	if (!sel)
 		return;
+
 	debug("killing client with pid: %d\n", sel->pid);
 	kill(-sel->pid, SIGKILL);
 }
@@ -1522,9 +1551,7 @@ static void paste(const char *args[])
 
 static void quit(const char *args[])
 {
-	cleanup();
-	/* Need to do not mix in-dvtm-shell's and parent-shell's prompt lines.  */
-	puts("\r");
+	/* Just a wrapper.  */
 	exit(EXIT_SUCCESS);
 }
 
@@ -1543,6 +1570,7 @@ static void redraw(const char *args[])
 static void scrollback(const char *args[])
 {
 	int div = 0;
+
 	if (!is_content_visible(sel))
 		return;
 
@@ -1638,6 +1666,7 @@ static void togglebar(const char *args[])
 		showbar();
 	else
 		hidebar();
+
 	bar.autohide = false;
 	updatebarpos();
 	redraw(NULL);
@@ -1663,6 +1692,7 @@ static void toggleminimize(const char *args[])
 	int n;
 	if (!sel)
 		return;
+
 	/* the last window can't be minimized */
 	if (!sel->minimized) {
 		for (n = 0, c = nextvisible(clients); c; c = nextvisible(c->next))
@@ -1724,6 +1754,7 @@ static void zoom(const char *args[])
 	if ((c = sel) == nextvisible(clients))
 		if (!(c = nextvisible(c->next)))
 			return;
+
 	detach(c);
 	attach(c);
 	focus(c);
@@ -1764,6 +1795,7 @@ static Cmd *get_cmd_by_name(const char *name)
 		if (!strcmp(name, commands[i].name))
 			return &commands[i];
 	}
+
 	return NULL;
 }
 
@@ -1846,7 +1878,7 @@ static void handle_cmdfifo(void)
 							args[argc++] = arg;
 
 						while (*p == ' ')
-							++p;
+							p++;
 						arg = p--;
 					}
 					break;
@@ -1922,7 +1954,8 @@ static void handle_editor(Client *c)
 		copyreg.size = screen.history;
 	copyreg.len = 0;
 	while (c->editor_fds[1] >= 0 && copyreg.len < copyreg.size) {
-		ssize_t len = read(c->editor_fds[1], copyreg.data + copyreg.len,
+		ssize_t len = read(c->editor_fds[1],
+				   copyreg.data + copyreg.len,
 				   copyreg.size - copyreg.len);
 		if (len < 0) {
 			if (errno == EINTR)
@@ -1934,8 +1967,7 @@ static void handle_editor(Client *c)
 		copyreg.len += len;
 		if (copyreg.len == copyreg.size) {
 			copyreg.size *= 2;
-			if (!(copyreg.data =
-				      realloc(copyreg.data, copyreg.size))) {
+			if (!(copyreg.data = realloc(copyreg.data, copyreg.size))) {
 				copyreg.size = 0;
 				copyreg.len = 0;
 			}
@@ -1974,11 +2006,36 @@ static int open_or_create_fifo(const char *name, const char **name_created)
 	return fd;
 }
 
-static void usage(void)
+#ifdef __GNUC__
+__attribute__((__noreturn__))
+#endif
+static void usage(int status)
 {
-	eprint("usage: dvtm [-v] [-M] [-m mod] [-d delay] [-h lines] [-t title] "
-	       "[-s status-fifo] [-c cmd-fifo] [cmd...]\n");
-	exit(EXIT_FAILURE);
+	FILE *fp = (status == EXIT_SUCCESS ? stdout : stderr);
+
+	fputs("Usage: dvtm [options]...\n"
+"Options:\n"
+"  -?                Print this information to standart output and exit.\n"
+"  -v                Print version information to standart output and exit.\n"
+"  -M                Toggle default mouse grabbing upon startup.\n"
+"                      Use this to allow normal mouse operation under X.\n"
+"  -m MODIFIER       Set command modifier at runtime (by default it sets to ^g).\n"
+"  -d DELAY          Set the delay ncurses waits before deciding if a character\n"
+"                      that might be part of an escape sequence is actually part\n"
+"                      of an escape sequence.\n"
+"  -h LINES          Set the scrollback history buffer size at runtime.\n"
+"  -t TITLE          Set a static terminal TITLE and do not change it to the\n"
+"                      one of the currently focused window.\n"
+"  -s STATUS-FIFO    Open or create the named pipe STATUS-FIFO read its content\n"
+"                      and display it in the statusbar.  See the dvtm-status(1)\n"
+"                      script for an usage example.\n"
+"  -c CMD-FIFO       Open or create the named pipe CMD-FIFO and look for commands\n"
+"                      to execute which were defined in config.h.\n"
+"  [COMMAND(S)]...   Execute COMMAND(S), each in a separate window.\n"
+"\n"
+"For more information, see dvtm(1)\n", fp);
+
+	exit(status);
 }
 
 static bool parse_args(int argc, char *argv[])
@@ -2002,8 +2059,10 @@ static bool parse_args(int argc, char *argv[])
 		}
 		if (argv[arg][1] != 'v' && argv[arg][1] != 'M' &&
 		    (arg + 1) >= argc)
-			usage();
+			usage(EXIT_FAILURE);
 		switch (argv[arg][1]) {
+		case '?':
+			usage(EXIT_SUCCESS);
 		case 'v':
 			puts("dvtm-" VERSION " © 2007-2016 Marc André Tanner");
 			exit(EXIT_SUCCESS);
@@ -2046,7 +2105,7 @@ static bool parse_args(int argc, char *argv[])
 			break;
 		}
 		default:
-			usage();
+			usage(EXIT_FAILURE);
 		}
 	}
 	return init;
@@ -2068,10 +2127,8 @@ int main(int argc, char *argv[])
 		int r, nfds = 0;
 		fd_set rd;
 
-		if (screen.need_resize) {
+		if (screen.need_resize)
 			resize_screen();
-			screen.need_resize = false;
-		}
 
 		FD_ZERO(&rd);
 		FD_SET(STDIN_FILENO, &rd);
@@ -2148,13 +2205,13 @@ int main(int argc, char *argv[])
 		}
 
 		if (FD_ISSET(sigwinch_pipe[PIPE_READ], &rd)) {
-			char buf[1];
+			char buf[256];
 			while (read(sigwinch_pipe[PIPE_READ], &buf, sizeof(buf)) > 0)
 				;
 			handle_sigwinch();
 		}
 		if (FD_ISSET(sigchld_pipe[PIPE_READ], &rd)) {
-			char buf[1];
+			char buf[256];
 			while (read(sigchld_pipe[PIPE_READ], &buf, sizeof(buf)) > 0)
 				;
 			handle_sigchld();
@@ -2190,6 +2247,5 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	cleanup();
 	return 0;
 }

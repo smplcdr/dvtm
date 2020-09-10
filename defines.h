@@ -15,7 +15,6 @@
 
 #define IS_CONTROL(key)	(!((key) & 0xFFFFFF60ul))
 
-
 #define countof(arr)	(sizeof(arr) / sizeof((arr)[0]))
 #define MAX(x, y)	((x) > (y) ? (x) : (y))
 #define MIN(x, y)	((x) < (y) ? (x) : (y))
